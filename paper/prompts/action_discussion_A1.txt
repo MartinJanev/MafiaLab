@@ -1,0 +1,5 @@
+#DISCUSSION ROUND [round_num]/[discussion_rounds]:
+What message do you want to say to everyone?
+Your response must start with your message in double
+quotation marks, followed by optional reasoning:
+[/INST]

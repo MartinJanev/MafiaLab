@@ -1,0 +1,19 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.11"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+      - run: uv venv .venv --python ${{ matrix.python }}
+      - run: make install
+      - run: make check

@@ -1,0 +1,197 @@
+{
+  "schema_version": "1.0",
+  "game_id": "mini-mafia:transcript-3.2",
+  "source": "paper",
+  "config": {
+    "preset": "mini_mafia",
+    "n_players": 4,
+    "names": [
+      "Alice",
+      "Bob",
+      "Charlie",
+      "Diana"
+    ],
+    "discussion_rounds": 2
+  },
+  "seeds": {},
+  "players": [
+    {
+      "name": "Alice",
+      "role": "villager",
+      "model": "Claude Sonnet 4",
+      "agent": null,
+      "alive_at_start_of_day": true
+    },
+    {
+      "name": "Bob",
+      "role": "mafioso",
+      "model": "GPT-5 Mini",
+      "agent": null,
+      "alive_at_start_of_day": true
+    },
+    {
+      "name": "Charlie",
+      "role": "villager",
+      "model": null,
+      "agent": null,
+      "alive_at_start_of_day": false
+    },
+    {
+      "name": "Diana",
+      "role": "detective",
+      "model": "GPT-5 Mini",
+      "agent": null,
+      "alive_at_start_of_day": true
+    }
+  ],
+  "night_actions": [
+    {
+      "night": 1,
+      "actor": "Bob",
+      "action": "kill",
+      "target": "Charlie",
+      "result": null,
+      "fallback": false
+    },
+    {
+      "night": 1,
+      "actor": "Diana",
+      "action": "investigate",
+      "target": "Bob",
+      "result": "mafioso",
+      "fallback": false
+    }
+  ],
+  "messages": [
+    {
+      "day": 1,
+      "round": 1,
+      "position": 1,
+      "speaker": "Bob",
+      "text": "Terrible about Charlie. We should focus on who was acting odd before the death — who last spoke with him?",
+      "silent": false,
+      "parse_ok": true,
+      "elided": false,
+      "turn": null
+    },
+    {
+      "day": 1,
+      "round": 1,
+      "position": 2,
+      "speaker": "Diana",
+      "text": "I investigated Bob last night — he's the mafioso. Vote Bob.",
+      "silent": false,
+      "parse_ok": true,
+      "elided": false,
+      "turn": null
+    },
+    {
+      "day": 1,
+      "round": 1,
+      "position": 3,
+      "speaker": "Alice",
+      "text": "Diana, that's a very bold claim to make so quickly. If you're really the detective, can you explain why you chose to investigate Bob specifically on night 1?",
+      "silent": false,
+      "parse_ok": true,
+      "elided": false,
+      "turn": null
+    },
+    {
+      "day": 1,
+      "round": 2,
+      "position": 1,
+      "speaker": "Bob",
+      "text": "I didn't speak with Charlie much — sad loss. Diana's claim is suspiciously convenient; why would a detective reveal so soon? If Diana is detective, she should have safer info. I vote Diana.",
+      "silent": false,
+      "parse_ok": true,
+      "elided": false,
+      "turn": null
+    },
+    {
+      "day": 1,
+      "round": 2,
+      "position": 2,
+      "speaker": "Diana",
+      "text": "I investigated Bob night 1 and learned he's the mafioso. I understand it's early, but we only have one mafioso — we must vote Bob now to stop more kills.",
+      "silent": false,
+      "parse_ok": true,
+      "elided": false,
+      "turn": null
+    },
+    {
+      "day": 1,
+      "round": 2,
+      "position": 3,
+      "speaker": "Alice",
+      "text": "Diana, if you're truly the detective, revealing yourself this early puts you at huge risk. But your certainty is compelling. Bob, your deflection to vote Diana immediately after being accused seems defensive. I'm leaning toward believing Diana.",
+      "silent": false,
+      "parse_ok": true,
+      "elided": false,
+      "turn": null
+    }
+  ],
+  "votes": [
+    {
+      "day": 1,
+      "voter": "Alice",
+      "target": "Diana",
+      "parse_ok": true,
+      "fallback": false,
+      "turn": null
+    },
+    {
+      "day": 1,
+      "voter": "Bob",
+      "target": "Diana",
+      "parse_ok": true,
+      "fallback": false,
+      "turn": null
+    },
+    {
+      "day": 1,
+      "voter": "Diana",
+      "target": "Bob",
+      "parse_ok": true,
+      "fallback": false,
+      "turn": null
+    }
+  ],
+  "day_results": [
+    {
+      "day": 1,
+      "tally": {
+        "Alice": 0,
+        "Bob": 1,
+        "Diana": 2
+      },
+      "tied_candidates": [],
+      "tie_break": false,
+      "arrested": "Diana",
+      "arrested_role": "detective"
+    }
+  ],
+  "outcome": {
+    "winner": "mafia",
+    "arrested": "Diana",
+    "reason": "Diana arrested"
+  },
+  "metadata": {
+    "partial": false,
+    "title": null,
+    "section_id": "sec-3.2",
+    "page": 7,
+    "locator": "[p7 §3.2]",
+    "role_inference": "night_line",
+    "raw": {
+      "setup": "Bob (´, GPT-5 Mini), Alice ( , Claude Sonnet 4) and Diana (Û, GPT-5 Mini).",
+      "night": "Bob eliminates Charlie and Diana investigates Bob.",
+      "votes": "Alice votes Diana, Bob votes Diana, Diana votes Bob.",
+      "result": "Diana arrested, Mafia Victory."
+    },
+    "consistency": {
+      "arrested_in_top_tally": true,
+      "tie_flag_matches_tally": true,
+      "winner_matches_arrest": true
+    }
+  }
+}

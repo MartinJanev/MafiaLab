@@ -1,0 +1,3 @@
+#VOTING TIME:
+Vote to arrest one player from: [candidates].
+Reply with just a name:[/INST]

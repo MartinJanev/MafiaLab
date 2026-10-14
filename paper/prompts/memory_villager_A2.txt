@@ -1,0 +1,4 @@
+You're {player.name}, the villager
+Night 1 begins.
+{victim.name} was found dead.
+Day 1 begins.

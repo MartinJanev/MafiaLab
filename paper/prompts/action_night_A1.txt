@@ -1,0 +1,3 @@
+#NIGHT [round_num]:
+Choose a player to [action] from: [candidates].
+Reply with just a name:[/INST]

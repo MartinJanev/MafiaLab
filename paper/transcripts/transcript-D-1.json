@@ -1,0 +1,201 @@
+{
+  "schema_version": "1.0",
+  "game_id": "mini-mafia:transcript-D-1",
+  "source": "paper",
+  "config": {
+    "preset": "mini_mafia",
+    "n_players": 4,
+    "names": [
+      "Alice",
+      "Bob",
+      "Charlie",
+      "Diana"
+    ],
+    "discussion_rounds": 2
+  },
+  "seeds": {},
+  "players": [
+    {
+      "name": "Alice",
+      "role": "mafioso",
+      "model": "Mistral 7B",
+      "agent": null,
+      "alive_at_start_of_day": true
+    },
+    {
+      "name": "Bob",
+      "role": "detective",
+      "model": "GPT-5 Mini",
+      "agent": null,
+      "alive_at_start_of_day": true
+    },
+    {
+      "name": "Charlie",
+      "role": "villager",
+      "model": null,
+      "agent": null,
+      "alive_at_start_of_day": false
+    },
+    {
+      "name": "Diana",
+      "role": "villager",
+      "model": "GPT-5 Mini",
+      "agent": null,
+      "alive_at_start_of_day": true
+    }
+  ],
+  "night_actions": [
+    {
+      "night": 1,
+      "actor": "Alice",
+      "action": "kill",
+      "target": "Charlie",
+      "result": null,
+      "fallback": false
+    },
+    {
+      "night": 1,
+      "actor": "Bob",
+      "action": "investigate",
+      "target": "Alice",
+      "result": "mafioso",
+      "fallback": false
+    }
+  ],
+  "messages": [
+    {
+      "day": 1,
+      "round": 1,
+      "position": 1,
+      "speaker": "Diana",
+      "text": "I didn't do anything last night — I'm a villager. Charlie was found dead. We should ask questions and watch voting closely; the detective might reveal info or be quiet. Who was with Charlie before nightfall?",
+      "silent": false,
+      "parse_ok": true,
+      "elided": false,
+      "turn": null
+    },
+    {
+      "day": 1,
+      "round": 1,
+      "position": 2,
+      "speaker": "Bob",
+      "text": "I am the detective — I investigated Alice last night and they are the mafioso. Vote to arrest Alice now.",
+      "silent": false,
+      "parse_ok": true,
+      "elided": false,
+      "turn": null
+    },
+    {
+      "day": 1,
+      "round": 1,
+      "position": 3,
+      "speaker": "Alice",
+      "text": "I had a strange dream last night involving a red rose and a moonlit grave. It's just a figment of my imagination, but I can't help but feel uneasy about Charlie's death.",
+      "silent": false,
+      "parse_ok": true,
+      "elided": false,
+      "turn": null
+    },
+    {
+      "day": 1,
+      "round": 2,
+      "position": 1,
+      "speaker": "Diana",
+      "text": "I don't trust quick claims without proof — Bob, if you're the detective, why didn't you share how you investigated Charlie's death or your method? Alice, your dream sounds odd but isn't evidence. Let's ask Bob for specifics and hear from others before voting.",
+      "silent": false,
+      "parse_ok": true,
+      "elided": false,
+      "turn": null
+    },
+    {
+      "day": 1,
+      "round": 2,
+      "position": 2,
+      "speaker": "Bob",
+      "text": "I investigated Alice last night and my check was clear — Alice is mafia. Charlie was killed; we can't wait. Diana, ask for specifics if you want: I checked Alice directly and got a mafia result. Vote Alice now.",
+      "silent": false,
+      "parse_ok": true,
+      "elided": false,
+      "turn": null
+    },
+    {
+      "day": 1,
+      "round": 2,
+      "position": 3,
+      "speaker": "Alice",
+      "text": "I'd like to clarify my dream. It wasn't about the mafia or any crime; it was just a strange and unrelated dream. I don't have any information regarding Charlie's death, and I believe in transparency and trust...",
+      "silent": false,
+      "parse_ok": true,
+      "elided": false,
+      "turn": null
+    }
+  ],
+  "votes": [
+    {
+      "day": 1,
+      "voter": "Alice",
+      "target": "Diana",
+      "parse_ok": true,
+      "fallback": false,
+      "turn": null
+    },
+    {
+      "day": 1,
+      "voter": "Bob",
+      "target": "Alice",
+      "parse_ok": true,
+      "fallback": false,
+      "turn": null
+    },
+    {
+      "day": 1,
+      "voter": "Diana",
+      "target": "Bob",
+      "parse_ok": true,
+      "fallback": false,
+      "turn": null
+    }
+  ],
+  "day_results": [
+    {
+      "day": 1,
+      "tally": {
+        "Alice": 1,
+        "Bob": 1,
+        "Diana": 1
+      },
+      "tied_candidates": [
+        "Alice",
+        "Bob",
+        "Diana"
+      ],
+      "tie_break": true,
+      "arrested": "Alice",
+      "arrested_role": "mafioso"
+    }
+  ],
+  "outcome": {
+    "winner": "town",
+    "arrested": "Alice",
+    "reason": "Alice arrested"
+  },
+  "metadata": {
+    "partial": false,
+    "title": "The Red Rose and the Moonlit Grave",
+    "section_id": "sec-D",
+    "page": 20,
+    "locator": "[p20 §D]",
+    "role_inference": "night_line",
+    "raw": {
+      "setup": "Alice (´, Mistral 7B), Diana ( , GPT-5 Mini), and Bob (Û, GPT-5 Mini).",
+      "night": "Alice eliminates Charlie and Bob investigates Alice.",
+      "votes": "Alice votes Diana, Bob votes Alice, Diana votes Bob",
+      "result": "Alice arrested (tie-breaker), Town Victory."
+    },
+    "consistency": {
+      "arrested_in_top_tally": true,
+      "tie_flag_matches_tally": true,
+      "winner_matches_arrest": true
+    }
+  }
+}

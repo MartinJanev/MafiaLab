@@ -1,0 +1,6 @@
+You're {player.name}, the detective
+Night 1 begins.
+{victim.name} was found dead.
+You investigated {mafioso.name} and discovered that they
+are the mafioso.
+Day 1 begins.

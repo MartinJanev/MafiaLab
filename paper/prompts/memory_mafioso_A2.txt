@@ -1,0 +1,5 @@
+You're {player.name}, the mafioso
+Night 1 begins.
+You killed {victim.name}.
+{victim.name} was found dead.
+Day 1 begins.

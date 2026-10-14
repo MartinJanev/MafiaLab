@@ -1,0 +1,197 @@
+{
+  "schema_version": "1.0",
+  "game_id": "mini-mafia:transcript-D-3",
+  "source": "paper",
+  "config": {
+    "preset": "mini_mafia",
+    "n_players": 4,
+    "names": [
+      "Alice",
+      "Bob",
+      "Charlie",
+      "Diana"
+    ],
+    "discussion_rounds": 2
+  },
+  "seeds": {},
+  "players": [
+    {
+      "name": "Alice",
+      "role": "mafioso",
+      "model": "DeepSeek V3.1",
+      "agent": null,
+      "alive_at_start_of_day": true
+    },
+    {
+      "name": "Bob",
+      "role": "detective",
+      "model": "Gemini 2.5 Flash Lite",
+      "agent": null,
+      "alive_at_start_of_day": true
+    },
+    {
+      "name": "Charlie",
+      "role": "villager",
+      "model": null,
+      "agent": null,
+      "alive_at_start_of_day": false
+    },
+    {
+      "name": "Diana",
+      "role": "villager",
+      "model": "DeepSeek V3.1",
+      "agent": null,
+      "alive_at_start_of_day": true
+    }
+  ],
+  "night_actions": [
+    {
+      "night": 1,
+      "actor": "Alice",
+      "action": "kill",
+      "target": "Charlie",
+      "result": null,
+      "fallback": false
+    },
+    {
+      "night": 1,
+      "actor": "Bob",
+      "action": "investigate",
+      "target": "Alice",
+      "result": "mafioso",
+      "fallback": false
+    }
+  ],
+  "messages": [
+    {
+      "day": 1,
+      "round": 1,
+      "position": 1,
+      "speaker": "Bob",
+      "text": "Alice is the mafia. Charlie is dead, and I investigated Alice last night. She's the only mafia.",
+      "silent": false,
+      "parse_ok": true,
+      "elided": false,
+      "turn": null
+    },
+    {
+      "day": 1,
+      "round": 1,
+      "position": 2,
+      "speaker": "Alice",
+      "text": "Bob is lying. I'm the detective and I investigated Diana last night. She's a villager.",
+      "silent": false,
+      "parse_ok": true,
+      "elided": false,
+      "turn": null
+    },
+    {
+      "day": 1,
+      "round": 1,
+      "position": 3,
+      "speaker": "Diana",
+      "text": "I trust Alice. Bob's claim doesn't add up - if he were detective, why investigate Alice when she could be town? Alice's investigation of me checks out.",
+      "silent": false,
+      "parse_ok": true,
+      "elided": false,
+      "turn": null
+    },
+    {
+      "day": 1,
+      "round": 2,
+      "position": 1,
+      "speaker": "Alice",
+      "text": "Bob is clearly scrambling. If he were detective, he'd have investigated a more suspicious target first. Diana confirmed my investigation, so Bob must be mafia trying to frame me.",
+      "silent": false,
+      "parse_ok": true,
+      "elided": false,
+      "turn": null
+    },
+    {
+      "day": 1,
+      "round": 2,
+      "position": 2,
+      "speaker": "Diana",
+      "text": "I vote Bob. Alice's story is consistent and my role confirms her investigation. Bob's claim is illogical for a real detective.",
+      "silent": false,
+      "parse_ok": true,
+      "elided": false,
+      "turn": null
+    },
+    {
+      "day": 1,
+      "round": 2,
+      "position": 3,
+      "speaker": "Bob",
+      "text": "Alice is the mafia. I investigated her last night and confirmed it. Charlie's death is on her hands. Diana, Alice lied to you to protect herself. She's the only mafia.",
+      "silent": false,
+      "parse_ok": true,
+      "elided": false,
+      "turn": null
+    }
+  ],
+  "votes": [
+    {
+      "day": 1,
+      "voter": "Alice",
+      "target": "Bob",
+      "parse_ok": true,
+      "fallback": false,
+      "turn": null
+    },
+    {
+      "day": 1,
+      "voter": "Bob",
+      "target": "Alice",
+      "parse_ok": true,
+      "fallback": false,
+      "turn": null
+    },
+    {
+      "day": 1,
+      "voter": "Diana",
+      "target": "Bob",
+      "parse_ok": true,
+      "fallback": false,
+      "turn": null
+    }
+  ],
+  "day_results": [
+    {
+      "day": 1,
+      "tally": {
+        "Alice": 1,
+        "Bob": 2,
+        "Diana": 0
+      },
+      "tied_candidates": [],
+      "tie_break": false,
+      "arrested": "Bob",
+      "arrested_role": "detective"
+    }
+  ],
+  "outcome": {
+    "winner": "mafia",
+    "arrested": "Bob",
+    "reason": "Bob arrested"
+  },
+  "metadata": {
+    "partial": false,
+    "title": "She's a Villager",
+    "section_id": "sec-D",
+    "page": 21,
+    "locator": "[p21 §D]",
+    "role_inference": "night_line",
+    "raw": {
+      "setup": "Alice (´, DeepSeek V3.1), Diana ( , DeepSeek V3.1), and Bob (Û, Gemini 2.5 Flash Lite)",
+      "night": "Alice eliminates Charlie and Bob investigates Alice.",
+      "votes": "Alice votes Bob, Bob votes Alice, Diana votes Bob",
+      "result": "Bob arrested, Mafia Victory."
+    },
+    "consistency": {
+      "arrested_in_top_tally": true,
+      "tie_flag_matches_tally": true,
+      "winner_matches_arrest": true
+    }
+  }
+}

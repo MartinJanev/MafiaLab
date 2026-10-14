@@ -1,0 +1,197 @@
+{
+  "schema_version": "1.0",
+  "game_id": "mini-mafia:transcript-D-2",
+  "source": "paper",
+  "config": {
+    "preset": "mini_mafia",
+    "n_players": 4,
+    "names": [
+      "Alice",
+      "Bob",
+      "Charlie",
+      "Diana"
+    ],
+    "discussion_rounds": 2
+  },
+  "seeds": {},
+  "players": [
+    {
+      "name": "Alice",
+      "role": "villager",
+      "model": null,
+      "agent": null,
+      "alive_at_start_of_day": false
+    },
+    {
+      "name": "Bob",
+      "role": "mafioso",
+      "model": "Mistral-7B-Instruct",
+      "agent": null,
+      "alive_at_start_of_day": true
+    },
+    {
+      "name": "Charlie",
+      "role": "detective",
+      "model": "Mistral-7B-Instruct",
+      "agent": null,
+      "alive_at_start_of_day": true
+    },
+    {
+      "name": "Diana",
+      "role": "villager",
+      "model": "Claude Sonnet 4",
+      "agent": null,
+      "alive_at_start_of_day": true
+    }
+  ],
+  "night_actions": [
+    {
+      "night": 1,
+      "actor": "Bob",
+      "action": "kill",
+      "target": "Alice",
+      "result": null,
+      "fallback": false
+    },
+    {
+      "night": 1,
+      "actor": "Charlie",
+      "action": "investigate",
+      "target": "Bob",
+      "result": "mafioso",
+      "fallback": false
+    }
+  ],
+  "messages": [
+    {
+      "day": 1,
+      "round": 1,
+      "position": 1,
+      "speaker": "Diana",
+      "text": "Alice was killed on Night 1. We need to figure out who the mafioso is among Charlie, Bob, and myself. I'm a villager, so I know it's either Charlie or Bob.",
+      "silent": false,
+      "parse_ok": true,
+      "elided": false,
+      "turn": null
+    },
+    {
+      "day": 1,
+      "round": 1,
+      "position": 2,
+      "speaker": "Bob",
+      "text": "I agree with Diana. Let's focus on identifying the mafioso among Charlie and myself. I have no reason to believe I am the mafia, but I will support any reasonable investigation or vote.",
+      "silent": false,
+      "parse_ok": true,
+      "elided": false,
+      "turn": null
+    },
+    {
+      "day": 1,
+      "round": 1,
+      "position": 3,
+      "speaker": "Charlie",
+      "text": "I believe we should focus our investigation on Bob, given that Alice was killed on Night 1 and he is the only other active player besides Charlie and myself. However, I still need more information to be certain.",
+      "silent": false,
+      "parse_ok": true,
+      "elided": false,
+      "turn": null
+    },
+    {
+      "day": 1,
+      "round": 2,
+      "position": 1,
+      "speaker": "Bob",
+      "text": "I have no information that directly implicates me in Alice's death, and I support the investigation into identifying the mafioso among Charlie and myself. Let us continue to gather evidence and discuss our suspicions openly.",
+      "silent": false,
+      "parse_ok": true,
+      "elided": false,
+      "turn": null
+    },
+    {
+      "day": 1,
+      "round": 2,
+      "position": 2,
+      "speaker": "Charlie",
+      "text": "Based on the information we have, it seems likely that Bob is the mafioso. However, I still need more evidence to be certain. Let's continue investigating and discussing our suspicions openly.",
+      "silent": false,
+      "parse_ok": true,
+      "elided": false,
+      "turn": null
+    },
+    {
+      "day": 1,
+      "round": 2,
+      "position": 3,
+      "speaker": "Diana",
+      "text": "Charlie, you said 'he is the only other active player besides Charlie and myself' - but you ARE Charlie. That's a strange way to phrase it, like you're distancing yourself from your own identity. This makes me suspicious of you.",
+      "silent": false,
+      "parse_ok": true,
+      "elided": false,
+      "turn": null
+    }
+  ],
+  "votes": [
+    {
+      "day": 1,
+      "voter": "Bob",
+      "target": "Charlie",
+      "parse_ok": true,
+      "fallback": false,
+      "turn": null
+    },
+    {
+      "day": 1,
+      "voter": "Charlie",
+      "target": "Bob",
+      "parse_ok": true,
+      "fallback": false,
+      "turn": null
+    },
+    {
+      "day": 1,
+      "voter": "Diana",
+      "target": "Charlie",
+      "parse_ok": true,
+      "fallback": false,
+      "turn": null
+    }
+  ],
+  "day_results": [
+    {
+      "day": 1,
+      "tally": {
+        "Bob": 1,
+        "Charlie": 2,
+        "Diana": 0
+      },
+      "tied_candidates": [],
+      "tie_break": false,
+      "arrested": "Charlie",
+      "arrested_role": "detective"
+    }
+  ],
+  "outcome": {
+    "winner": "mafia",
+    "arrested": "Charlie",
+    "reason": "Charlie arrested"
+  },
+  "metadata": {
+    "partial": false,
+    "title": "But You ARE Charlie",
+    "section_id": "sec-D",
+    "page": 20,
+    "locator": "[p20 §D]",
+    "role_inference": "night_line",
+    "raw": {
+      "setup": "Bob (´, Mistral-7B-Instruct), Diana ( , Claude Sonnet 4), and Charlie (Û, Mistral-7B-Instruct)",
+      "night": "Bob eliminates Alice and Charlie investigates Bob.",
+      "votes": "Bob votes Charlie, Charlie votes Bob, Diana votes Charlie.",
+      "result": "Charlie arrested, Mafia Victory."
+    },
+    "consistency": {
+      "arrested_in_top_tally": true,
+      "tie_flag_matches_tally": true,
+      "winner_matches_arrest": true
+    }
+  }
+}

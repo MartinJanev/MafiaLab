@@ -1,0 +1,11 @@
+Model (Detective),DeepSeek V3.1,GPT-4.1 Mini,GPT-5 Mini,Grok 3 Mini,Mistral 7B
+Claude Opus 4.1,59,62,76,97,66
+Claude Sonnet 4,62,69,64,96,63
+DeepSeek V3.1,70,64,65,98,57
+Gemini 2.5 Flash Lite,50,52,61,97,57
+GPT-4.1 Mini,60,63,66,88,62
+GPT-5 Mini,69,75,72,95,59
+Grok 3 Mini,64,79,75,92,54
+Llama 3.1 8B Instruct,17,19,23,28,26
+Mistral 7B Instruct,45,54,45,62,46
+Qwen2.5 7B Instruct,28,45,57,75,46

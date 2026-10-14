@@ -1,0 +1,4 @@
+Model,Variable Target,Fixed Background
+Deceive,Mafioso,Villager and Detective
+Detect,Villager,Detective and Mafioso
+Disclose,Detectives,Mafioso and Villager
