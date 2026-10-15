@@ -7,40 +7,54 @@ models:
     provider: ollama
     model: llama3.1:8b
     paper_model: Llama 3.1 8B Instruct
-    params: {max_tokens: 300}
+    params: { max_tokens: 300 }
   ollama-mistral-7b:
     provider: ollama
     model: mistral:7b
     paper_model: Mistral 7B Instruct
-    params: {max_tokens: 300}
+    params: { max_tokens: 300 }
   ollama-qwen2.5-7b:
     provider: ollama
     model: qwen2.5:7b
     paper_model: Qwen2.5 7B Instruct
-    params: {max_tokens: 300}
+    params: { max_tokens: 300 }
 
   ollama-qwen2.5-14b:
     provider: ollama
     model: qwen2.5:14b
-    params: {max_tokens: 4000}
+    params: { max_tokens: 300 }
   ollama-qwen3-8b:
     provider: ollama
     model: qwen3:8b
-    params: {max_tokens: 300, think: false}
+    params: { max_tokens: 300, think: false }
   ollama-gemma3-12b:
     provider: ollama
     model: gemma3:12b
-    params: {max_tokens: 300}
+    params: { max_tokens: 300 }
 
   ollama-qwen2.5-3b:
     provider: ollama
     model: qwen2.5:3b
-    params: {max_tokens: 300}
+    params: { max_tokens: 300 }
   ollama-llama3.2-3b:
     provider: ollama
     model: llama3.2:3b
-    params: {max_tokens: 300}
+    params: { max_tokens: 300 }
   ollama-gemma3-4b:
     provider: ollama
     model: gemma3:4b
-    params: {max_tokens: 300}
+    params: { max_tokens: 300 }
+  nim-deepseek-v4.1-flash:
+    provider: nim
+    model: deepseek-ai/deepseek-v4.1-flash
+    base_url: https://integrate.api.nvidia.com/v1
+    api_key_env: NVIDIA_API_KEY
+    rpm: 40
+    params: { max_tokens: 500, reasoning_effort: low }
+  nim-gpt-oss-20b:
+    provider: nim
+    model: openai/gpt-oss-20b
+    base_url: https://integrate.api.nvidia.com/v1
+    api_key_env: NVIDIA_API_KEY
+    rpm: 40
+    params: { max_tokens: 1000, reasoning_effort: low }

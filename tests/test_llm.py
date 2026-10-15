@@ -229,7 +229,7 @@ def test_ollama_client_options():
 
 def test_models_yaml_loads_and_builds_all_clients():
     cfg = load_models()
-    assert {s.provider for s in cfg.models.values()} <= {"ollama", "fake"}
+    assert {s.provider for s in cfg.models.values()} <= {"ollama", "fake", "nim", "openai_compat"}
     open_weight_paper = {
         s.paper_model for s in cfg.models.values() if s.provider == "ollama" and s.paper_model
     }

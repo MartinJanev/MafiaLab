@@ -179,3 +179,7 @@ class OllamaClient(_HTTPClient):
             output_tokens=data.get("eval_count", 0) or 0,
         )
         return self._finish(text, usage, data, started, data.get("done_reason"))
+
+
+class NVIDIAClient(OpenAICompatClient):
+    provider = "nim"

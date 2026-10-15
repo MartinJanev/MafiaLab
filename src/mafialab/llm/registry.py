@@ -13,10 +13,10 @@ from mafialab.llm.cache import DiskCache
 from mafialab.llm.cost import CostTracker, Pricing
 from mafialab.llm.fake import FakeLLM
 from mafialab.llm.managed import ManagedClient
-from mafialab.llm.providers import AnthropicClient, OllamaClient, OpenAICompatClient
+from mafialab.llm.providers import AnthropicClient, NVIDIAClient, OllamaClient, OpenAICompatClient
 from mafialab.llm.ratelimit import RateLimiter
 
-ProviderName = Literal["openai_compat", "anthropic", "ollama", "fake"]
+ProviderName = Literal["openai_compat", "anthropic", "ollama", "nim", "fake"]
 
 
 class ModelSpec(BaseModel):
@@ -54,6 +54,7 @@ DEFAULT_BASE_URLS = {
     "openai_compat": "https://openrouter.ai/api/v1",
     "anthropic": "https://api.anthropic.com",
     "ollama": "http://localhost:11434",
+    "nim": "https://integrate.api.nvidia.com/v1",
 }
 
 
@@ -70,6 +71,8 @@ def build_raw_client(spec: ModelSpec, **http_kwargs) -> LLMClient:
     )
     if spec.provider == "openai_compat":
         return OpenAICompatClient(spec.model, **common)
+    if spec.provider == "nim":
+        return NVIDIAClient(spec.model, **common)
     if spec.provider == "anthropic":
         return AnthropicClient(spec.model, **common)
     if spec.provider == "ollama":
