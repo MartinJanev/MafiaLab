@@ -167,6 +167,15 @@ def test_doctor_rules_only_in_larger_games():
     assert "2 mafiosos, 1 doctor" in big and "Paul" not in big and "Iris" in big
 
 
+def test_larger_games_state_their_own_rules():
+    mini = game_prompt("Alice", [], "x")
+    big = game_prompt("Alice", [], "x", names=NAMES[:9])
+    for paper_text in ("One randomly selected mafioso", "eliminate all non-mafiosos"):
+        assert paper_text in mini and paper_text not in big
+    for ours in ("chosen most often", "at least as many", "two nights in a row"):
+        assert ours not in mini and ours in big
+
+
 def test_night_action_and_memory_lines():
     text = night_action(2, "protect", ["Bob", "Eve"])
     assert text.startswith("#NIGHT 2:") and "to protect from: Bob, Eve." in text

@@ -173,7 +173,6 @@ def play_game(
         mafia = [n for n in alive if roles[n] == "mafioso"]
         detective = next((n for n in alive if roles[n] == "detective"), None)
         doctor = next((n for n in alive if roles[n] == "doctor"), None)
-        killer = rng.choice(mafia)
         if detective:
             seen = choose(detective, k, "investigate", [n for n in alive if n != detective])
             night_actions[-1].result = roles[seen]
@@ -182,17 +181,27 @@ def play_game(
             )
         protected = None
         if doctor:
-            protected = choose(doctor, k, "protect", list(alive))
+            # the doctor is alive, so their last protection was last night
+            last = next((a.target for a in reversed(night_actions) if a.action == "protect"), None)
+            protected = choose(doctor, k, "protect", [n for n in alive if n != last])
             memory[doctor].append(f"You protected {protected}.")
-        victim = choose(killer, k, "kill", [n for n in alive if roles[n] != "mafioso"])
+        targets = [n for n in alive if roles[n] != "mafioso"]
+        picks = [choose(m, k, "kill", targets) for m in mafia]
+        kills = night_actions[-len(mafia) :]
+        tally = {n: picks.count(n) for n in picks}
+        victim = rng.choice([n for n, c in tally.items() if c == max(tally.values())])
         saved = victim == protected
-        night_actions[-1].result = "saved" if saved else "killed"
+        for a in kills:
+            a.result = ("saved" if saved else "killed") if a.target == victim else "outvoted"
         for m in mafia:
-            memory[m].append(
-                f"You chose to kill {victim}."
-                if m == killer
-                else f"{killer} chose to kill {victim}."
+            memory[m].extend(
+                f"You chose to kill {a.target}."
+                if a.actor == m
+                else f"{a.actor} chose to kill {a.target}."
+                for a in kills
             )
+            if len(mafia) > 1:
+                memory[m].append(f"The mafia attacks {victim}.")
         if not saved:
             alive.remove(victim)
         for n in alive:
@@ -201,7 +210,8 @@ def play_game(
 
     def side_won() -> str | None:
         mafia = sum(roles[n] == "mafioso" for n in alive)
-        return "town" if mafia == 0 else "mafia" if mafia == len(alive) else None
+        # at parity the mafia can no longer lose a vote
+        return "town" if mafia == 0 else "mafia" if mafia >= len(alive) - mafia else None
 
     if mini:
         mafioso = next(n for n in names if roles[n] == "mafioso")

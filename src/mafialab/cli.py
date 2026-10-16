@@ -133,7 +133,7 @@ def play(
     fate = {
         a.target: f"killed night {a.night}"
         for a in log.night_actions
-        if a.action == "kill" and a.result != "saved"
+        if a.action == "kill" and a.result in (None, "killed")
     }
     fate |= {d.arrested: f"arrested day {d.day}" for d in log.day_results}
     width = max(len(p.model) for p in log.players)

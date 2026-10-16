@@ -31,8 +31,28 @@ DOCTOR_RULE = (
 )
 DOCTOR_NIGHT = (
     "- Protection: Each doctor chooses one active player to protect. A\n"
-    "protected player cannot be killed that night.\n"
+    "protected player cannot be killed that night. The same player cannot be\n"
+    "protected two nights in a row.\n"
 )
+# the paper's rules text describes Mini-Mafia; larger games replace these lines
+LARGER_GAME_RULES = {
+    "- Assassination: One randomly selected mafioso makes the final kill\n"
+    "decision for the team. The target must be an active non-mafioso.\n": (
+        "- Assassination: Each mafioso secretly chooses a target; the player\n"
+        "chosen most often is attacked, and a tie is broken randomly. The target\n"
+        "must be an active non-mafioso.\n"
+    ),
+    "- Mafia: eliminate all non-mafiosos through a combination of night kills\n"
+    "and daytime voting deception.\n": (
+        "- Mafia: reach at least as many active mafiosos as active non-mafiosos,\n"
+        "through a combination of night kills and daytime voting deception.\n"
+    ),
+    "- All mafiosos know which mafioso was assigned the kill decision at\n"
+    "night, and they are all informed of the outcome.\n": (
+        "- All mafiosos see which target each mafioso chose at night, and they\n"
+        "are all informed of the outcome.\n"
+    ),
+}
 
 
 @cache
@@ -101,6 +121,8 @@ def game_prompt(
 ) -> str:
     text = template("game_prompt_A1")
     if len(names) > 4:
+        for paper_text, ours in LARGER_GAME_RULES.items():
+            text = text.replace(paper_text, ours)
         text = text.replace(
             "- Villagers: Town members", DOCTOR_RULE + "- Villagers: Town members", 1
         )

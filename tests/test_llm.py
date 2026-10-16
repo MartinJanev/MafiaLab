@@ -265,6 +265,17 @@ def test_models_yaml_loads_and_builds_all_clients():
         assert build_raw_client(spec).model == spec.model
 
 
+def test_every_model_plays_at_the_same_sampling_settings():
+    for alias, spec in load_models().models.items():
+        if spec.provider == "fake":
+            continue
+        params = spec.params
+        if spec.provider == "ollama":
+            params = params | params["options"]
+        assert (params["temperature"], params["top_p"]) == (0.8, 0.9), alias
+        assert spec.provider != "ollama" or params["top_k"] == 40, alias
+
+
 def test_paid_models_yaml_has_the_papers_ten_api_models():
     cfg = load_models(paths.configs_dir() / "paid-models.yaml")
     assert cfg.get("or-gpt-5-mini").params["reasoning_effort"] == "minimal"

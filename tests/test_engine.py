@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import itertools
 import json
 import random
 import re
@@ -230,3 +231,52 @@ def test_day_two_remembers_day_one_votes():
     later = [r.prompt_text() for r in llm.calls if "Day 2 begins." in r.prompt_text()]
     assert later and all(f"{first.arrested} was arrested." in p for p in later)
     assert all("voted for" in p for p in later)
+
+
+def _out(log):
+    out = {a.target for a in log.night_actions if a.result == "killed"}
+    return out | {d.arrested for d in log.day_results}
+
+
+def test_mafia_wins_at_parity():
+    for seed in range(1, 12):
+        pick = random.Random(seed).choice
+        _, clients = chooser(lambda name, kind, c, pick=pick: pick(c))
+        log = play_game(clients, seed=seed, n_players=8)
+        alive = [p.role for p in log.players if p.name not in _out(log)]
+        mafia = alive.count("mafioso")
+        if log.outcome.winner == "mafia":
+            assert mafia == len(alive) - mafia >= 1
+        else:
+            assert mafia == 0
+
+
+def test_doctor_never_protects_the_same_player_twice_in_a_row():
+    # a doctor who always protects themself would repeat every night without the rule
+    _, clients = chooser(lambda name, kind, c: name if kind == "protect" and name in c else c[0])
+    nights = 0
+    for seed in range(1, 6):
+        log = play_game(clients, seed=seed, n_players=9)
+        protects = [a.target for a in log.night_actions if a.action == "protect"]
+        assert all(a != b for a, b in itertools.pairwise(protects))
+        nights = max(nights, len(protects))
+    assert nights >= 2
+
+
+def test_every_mafioso_picks_and_sees_the_others_pick():
+    first = play_game(chooser(lambda name, kind, c: c[0])[1], seed=1, n_players=8)
+    mafia = sorted(p.name for p in first.players if p.role == "mafioso")
+    llm, clients = chooser(
+        lambda name, kind, c: c[-1] if kind == "kill" and name == mafia[1] else c[0]
+    )
+    log = play_game(clients, seed=1, n_players=8)
+    night1 = [a for a in log.night_actions if a.night == 1 and a.action == "kill"]
+    picks = {a.actor: a.target for a in night1}
+    assert sorted(picks) == mafia and picks[mafia[0]] != picks[mafia[1]]
+    assert [a.result for a in night1].count("outvoted") == 1
+    seen = [
+        r.prompt_text()
+        for r in llm.calls
+        if r.tags["player"] == mafia[0] and r.tags["action"] == "discussion"
+    ]
+    assert seen and f"{mafia[1]} chose to kill {picks[mafia[1]]}." in seen[0]
