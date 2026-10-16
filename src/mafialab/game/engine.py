@@ -34,7 +34,6 @@ from mafialab.game.turns import TurnWriter
 from mafialab.llm import LLMClient, LLMRequest
 
 SEATS = ("mafioso", "detective", "villager", "villager2")
-NIGHT_ACTIONS = ("investigate", "protect", "kill")
 
 
 def play_game(

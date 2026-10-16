@@ -1,7 +1,7 @@
 [project]
 name = "mafialab"
 version = "0.5.0"
-description = "LLM agents playing Mini-Mafia"
+description = "LLM agents playing Mafia games"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }

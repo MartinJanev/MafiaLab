@@ -29,7 +29,6 @@ class TurnWriter:
         self.count += 1
         base_name = f"{self.count:02d}_{action_type}_{actor_safe}"
 
-        # Response file
         response_data = {
             "day": day,
             "action": action_type,
@@ -48,7 +47,6 @@ class TurnWriter:
 
         result = {"response_file": str(response_file.relative_to(self.output_dir))}
 
-        # Thinking file (if available)
         if response.thinking:
             thinking_data = {
                 "day": day,
@@ -60,7 +58,6 @@ class TurnWriter:
             thinking_file.write_text(json.dumps(thinking_data, indent=2) + "\n")
             result["thinking_file"] = str(thinking_file.relative_to(self.output_dir))
 
-        # Metadata file (for raw API response and extra context)
         if metadata or response.raw:
             metadata_data = {
                 "day": day,
