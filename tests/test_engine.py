@@ -36,6 +36,13 @@ def roles_for(seed):
     }
 
 
+def test_progress_reports_every_request():
+    lines = []
+    play_game(scripted(lambda name, c: c[0])[1], seed=1, progress=lines.append)
+    assert len(lines) == 9
+    assert all(re.search(r"\) (discussion|vote): \d+\.\d+s$", line) for line in lines)
+
+
 def test_same_seed_same_log():
     first = play_game(scripted(lambda name, c: c[0])[1], seed=7)
     again = play_game(scripted(lambda name, c: c[0])[1], seed=7)
@@ -125,3 +132,17 @@ def test_cached_seed_replays_a_nondeterministic_model(tmp_path):
     first = game(noisy)
     replay = game(FakeLLM(fail_times=99))  # any uncached request would raise
     assert replay == first
+
+
+def test_the_two_villagers_can_use_different_models():
+    _, clients = scripted(lambda name, c: c[0])
+    other, _ = scripted(lambda name, c: c[0])
+    log = play_game(
+        clients | {"villager2": other},
+        seed=6,
+        aliases={**dict.fromkeys(ROLES, "a"), "villager2": "b"},
+    )
+    villagers = [p for p in log.players if p.role == "villager"]
+    assert sorted(p.model for p in villagers) == ["a", "b"]
+    # with seed 6 the second villager survives the night: two messages and a vote
+    assert len(other.calls) == 3

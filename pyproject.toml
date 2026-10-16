@@ -1,6 +1,6 @@
 [project]
 name = "mafialab"
-version = "0.2.1"
+version = "0.4.0"
 description = "LLM agents playing Mini-Mafia"
 readme = "README.md"
 requires-python = ">=3.11"

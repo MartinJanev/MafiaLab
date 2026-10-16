@@ -93,5 +93,7 @@ def load_game(path: str | Path) -> GameLog:
 def save_game(log: GameLog, path: str | Path) -> Path:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(log.model_dump_json(indent=1) + "\n", encoding="utf-8")
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(log.model_dump_json(indent=1) + "\n", encoding="utf-8")
+    tmp.replace(path)  # a killed run never leaves a half-written log behind
     return path

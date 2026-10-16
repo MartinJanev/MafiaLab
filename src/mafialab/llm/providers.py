@@ -56,7 +56,15 @@ class _HTTPClient(LLMClient):
         _raise_for_status(resp)
         return resp.json()
 
-    def _finish(self, text: str, usage: Usage, data: dict, started: float, finish: str | None):
+    def _finish(
+        self,
+        text: str,
+        usage: Usage,
+        data: dict,
+        started: float,
+        finish: str | None,
+        thinking: str | None = None,
+    ):
         return LLMResponse(
             text=text,
             provider=self.provider,
@@ -66,6 +74,7 @@ class _HTTPClient(LLMClient):
             latency_s=time.monotonic() - started,
             finish_reason=finish,
             raw=data,
+            thinking=thinking,
         )
 
 
@@ -91,6 +100,7 @@ class OpenAICompatClient(_HTTPClient):
         try:
             choice = data["choices"][0]
             text = choice["message"].get("content") or ""
+            thinking = choice["message"].get("thinking")
         except (KeyError, IndexError) as exc:
             raise LLMError(f"unexpected response shape: {str(data)[:300]}") from exc
         u = data.get("usage") or {}
@@ -100,7 +110,9 @@ class OpenAICompatClient(_HTTPClient):
             output_tokens=u.get("completion_tokens", 0),
             cached_input_tokens=cached,
         )
-        return self._finish(text, usage, data, started, choice.get("finish_reason"))
+        return self._finish(
+            text, usage, data, started, choice.get("finish_reason"), thinking=thinking
+        )
 
 
 class AnthropicClient(_HTTPClient):
@@ -140,6 +152,14 @@ class AnthropicClient(_HTTPClient):
         text = "".join(
             b.get("text", "") for b in data.get("content", []) if b.get("type") == "text"
         )
+        thinking = (
+            "".join(
+                b.get("thinking", "")
+                for b in data.get("content", [])
+                if b.get("type") == "thinking"
+            )
+            or None
+        )
         u = data.get("usage") or {}
         cache_read = u.get("cache_read_input_tokens", 0) or 0
         cache_write = u.get("cache_creation_input_tokens", 0) or 0
@@ -148,7 +168,7 @@ class AnthropicClient(_HTTPClient):
             output_tokens=u.get("output_tokens", 0),
             cached_input_tokens=cache_read,
         )
-        return self._finish(text, usage, data, started, data.get("stop_reason"))
+        return self._finish(text, usage, data, started, data.get("stop_reason"), thinking=thinking)
 
 
 class OllamaClient(_HTTPClient):
@@ -174,11 +194,12 @@ class OllamaClient(_HTTPClient):
             body["think"] = params["think"]
         data = self._post(f"{self.base_url}/api/chat", body, {"Content-Type": "application/json"})
         text = (data.get("message") or {}).get("content", "")
+        thinking = (data.get("message") or {}).get("thinking")
         usage = Usage(
             input_tokens=data.get("prompt_eval_count", 0) or 0,
             output_tokens=data.get("eval_count", 0) or 0,
         )
-        return self._finish(text, usage, data, started, data.get("done_reason"))
+        return self._finish(text, usage, data, started, data.get("done_reason"), thinking=thinking)
 
 
 class NVIDIAClient(OpenAICompatClient):

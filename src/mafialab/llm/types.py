@@ -52,6 +52,7 @@ class LLMResponse(BaseModel):
     latency_s: float = 0.0
     finish_reason: str | None = None
     raw: dict[str, Any] | None = None
+    thinking: str | None = None  # model's reasoning process if available
 
 
 def cache_key(provider: str, model: str, request: LLMRequest) -> str:
