@@ -12,3 +12,9 @@ def _no_network(monkeypatch):
 
     monkeypatch.setattr(socket.socket, "connect", guard)
     monkeypatch.setattr(socket, "create_connection", guard)
+
+
+@pytest.fixture(autouse=True)
+def _no_dotenv(monkeypatch):
+    # keep the developer's own .env out of the test run
+    monkeypatch.setattr("mafialab.cli.load_dotenv", lambda env: None)

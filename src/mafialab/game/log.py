@@ -33,6 +33,7 @@ class NightAction(_Strict):
     target: str
     result: str | None = None
     fallback: bool = False
+    turn: dict[str, Any] | None = None
 
 
 class Message(_Strict):
@@ -67,12 +68,12 @@ class DayResult(_Strict):
 
 class Outcome(_Strict):
     winner: str
-    arrested: str
+    arrested: str | None = None
     reason: str
 
 
 class GameLog(_Strict):
-    schema_version: str = "1.0"
+    schema_version: str = "1.1"
     game_id: str
     source: str
     config: GameConfig

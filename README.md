@@ -40,6 +40,26 @@ Give `--villager` twice to put a different model on each villager, for example
 This prints the transcript and saves the log to `data/games/`. Replies are cached in
 `data/cache/`, so running the same seed again replays the same game.
 
+## Larger games
+
+`--players N` (5 to 16) plays a full Mafia game instead of Mini-Mafia: nights and days alternate
+until one side is gone, and the models choose the night actions themselves. A doctor joins the
+town and protects one player each night, so these games also need `--doctor`.
+
+| Players | Mafiosos | Doctor | Detective | Villagers |
+|---------|----------|--------|-----------|-----------|
+| 5-7     | 1        | 1      | 1         | the rest  |
+| 8-11    | 2        | 1      | 1         | the rest  |
+| 12-16   | 3        | 1      | 1         | the rest  |
+
+```bash
+mafialab play --players 6 --mafioso ollama-qwen2.5-7b --detective ollama-qwen2.5-7b \
+              --villager ollama-qwen2.5-7b --doctor ollama-qwen2.5-7b --seed 1
+```
+
+Logs go to `data/games/players-N/`. With players voting at random, a 12-player game takes about
+120 model calls (Mini-Mafia takes 9), so expect minutes per game on local models.
+
 ## Tournament
 
 `configs/tournament.yaml` lists the models to test, the background models and the games per
@@ -56,6 +76,10 @@ Games that already have a log are skipped, so an interrupted run picks up where 
 `--workers` above 1 only helps if Ollama serves requests in parallel (`OLLAMA_NUM_PARALLEL`).
 `summary` prints the win counts per role and background, and how often each model's replies could
 not be parsed.
+
+Set `players: N` in the config (or pass `--players N` to both commands) to run the tournament on
+larger games. The tested model then takes every seat of its role, the background model takes all
+the others, and a fourth table, protect, has the tested model as the doctor.
 
 ## Layout
 

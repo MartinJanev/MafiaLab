@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import random
 import re
@@ -146,3 +147,86 @@ def test_the_two_villagers_can_use_different_models():
     assert sorted(p.model for p in villagers) == ["a", "b"]
     # with seed 6 the second villager survives the night: two messages and a vote
     assert len(other.calls) == 3
+
+
+def _digest(obj) -> str:
+    return hashlib.sha256(json.dumps(obj, sort_keys=True).encode()).hexdigest()
+
+
+def _mini_games():
+    games = []
+    for seed in range(1, 6):
+        llm, clients = scripted(lambda name, c: c[-1])
+        log = play_game(clients, seed=seed)
+        games.append(
+            {
+                "prompts": [r.prompt_text() for r in llm.calls],
+                "log": log.model_dump(
+                    mode="json", exclude={"schema_version", "metadata"}, exclude_none=True
+                ),
+            }
+        )
+    return games
+
+
+SAVED_SEED = 1  # the doctor guards the first kill target
+MINI_GOLDEN = "680ff1a8f5696fccc73ecc1b1f9c7c0b51ee7983169fa2cc549a17fa3233c26c"
+
+
+def test_mini_mafia_is_unchanged():
+    assert _digest(_mini_games()) == MINI_GOLDEN
+
+
+def chooser(pick):
+    # pick(name, kind, candidates) -> name; kind is "vote" or the night action
+    def respond(request):
+        prompt = request.prompt_text()
+        name = re.search(r"You're (\w+) and the other players", prompt)[1]
+        night = re.search(r"Choose a player to (\w+) from: (.*)\.\n", prompt)
+        if night:
+            return pick(name, night[1], night[2].split(", "))
+        if "#VOTING TIME:" in prompt:
+            return pick(name, "vote", re.search(r"from: (.*)\.\n", prompt)[1].split(", "))
+        return f'"I am {name}."'
+
+    llm = FakeLLM(respond)
+    return llm, dict.fromkeys(("mafioso", "doctor", "detective", "villager"), llm)
+
+
+@pytest.mark.parametrize("n", [5, 9, 12])
+def test_larger_games_end_and_never_prompt_the_dead(n):
+    for seed in range(1, 8):
+        pick = random.Random(seed).choice
+        llm, clients = chooser(lambda name, kind, c, pick=pick: pick(c))
+        log = play_game(clients, seed=seed, n_players=n)
+        roles = {p.name: p.role for p in log.players}
+        assert log.config.preset == "mafia" and len(log.players) == n
+        # (day, phase) after which a player may not be asked anything: 0 night, 1 day
+        out = {a.target: (a.night, 0) for a in log.night_actions if a.result == "killed"}
+        out |= {d.arrested: (d.day, 1) for d in log.day_results}
+        for request in llm.calls:
+            tags = request.tags
+            phase = 0 if tags["action"] in ("investigate", "protect", "kill") else 1
+            assert (int(tags["day"]), phase) <= out.get(tags["player"], (n, 1))
+        mafia_left = [p for p in roles if roles[p] == "mafioso" and p not in out]
+        assert log.outcome.winner == ("mafia" if mafia_left else "town")
+
+
+def test_protected_target_survives():
+    # the killer and the doctor both pick the first candidate
+    llm, clients = chooser(lambda name, kind, c: c[0])
+    log = play_game(clients, seed=SAVED_SEED, n_players=5)
+    kill = next(a for a in log.night_actions if a.action == "kill")
+    protect = next(a for a in log.night_actions if a.action == "protect")
+    assert kill.target == protect.target and kill.result == "saved"
+    assert any("Nobody was found dead." in r.prompt_text() for r in llm.calls)
+
+
+def test_day_two_remembers_day_one_votes():
+    llm, clients = chooser(lambda name, kind, c: c[0])
+    log = play_game(clients, seed=2, n_players=9)
+    assert len(log.day_results) >= 2
+    first = log.day_results[0]
+    later = [r.prompt_text() for r in llm.calls if "Day 2 begins." in r.prompt_text()]
+    assert later and all(f"{first.arrested} was arrested." in p for p in later)
+    assert all("voted for" in p for p in later)

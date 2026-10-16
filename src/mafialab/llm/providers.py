@@ -184,6 +184,11 @@ class OllamaClient(_HTTPClient):
             options["num_predict"] = params["max_tokens"]
         if params.get("seed") is not None:
             options["seed"] = params["seed"]
+        if "num_ctx" not in options:
+            # Ollama silently truncates prompts beyond its context window (4096 by default)
+            need = len(request.prompt_text()) // 3 + (params.get("max_tokens") or 0)
+            if need > 4096:
+                options["num_ctx"] = -(-need // 2048) * 2048
         body: dict[str, Any] = {
             "model": self.model,
             "messages": [m.model_dump() for m in request.messages],

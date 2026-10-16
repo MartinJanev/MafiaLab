@@ -14,35 +14,49 @@ from mafialab.game.log import GameLog, load_game, save_game
 from mafialab.llm.registry import ModelsConfig, build_client, load_models
 
 CAPABILITIES = ("deceive", "detect", "disclose")
-Lineup = tuple[str, str, str]
+Lineup = tuple[str, str, str, str | None]
 
 
-def lineup(capability: str, model: str, background: str) -> Lineup:
-    # (mafioso, detective, villager), the two villagers share one model
+def capabilities(players: int = 4) -> tuple[str, ...]:
+    return CAPABILITIES if players == 4 else (*CAPABILITIES, "protect")
+
+
+def lineup(capability: str, model: str, background: str, players: int = 4) -> Lineup:
+    # (mafioso, detective, villager, doctor), every seat of a role plays one model
+    doctor = None if players == 4 else background
     return {
-        "deceive": (model, background, background),
-        "detect": (background, background, model),
-        "disclose": (background, model, background),
+        "deceive": (model, background, background, doctor),
+        "detect": (background, background, model, doctor),
+        "disclose": (background, model, background, doctor),
+        "protect": (background, background, background, model),
     }[capability]
 
 
-def lineups(models: Iterable[str], backgrounds: Iterable[str]) -> list[Lineup]:
+def lineups(models: Iterable[str], backgrounds: Iterable[str], players: int = 4) -> list[Lineup]:
     # grouped by background so consecutive games keep the same models loaded
     order: dict[Lineup, None] = {}
     for b in backgrounds:
         for m in models:
-            for c in CAPABILITIES:
-                order.setdefault(lineup(c, m, b), None)
+            for c in capabilities(players):
+                order.setdefault(lineup(c, m, b, players), None)
     return list(order)
 
 
 def lineup_dir(
-    out_dir: str | Path, mafioso: str, detective: str, villager: str, villager2: str | None = None
+    out_dir: str | Path,
+    mafioso: str,
+    detective: str,
+    villager: str,
+    villager2: str | None = None,
+    *,
+    doctor: str | None = None,
+    players: int = 4,
 ) -> Path:
-    name = f"M_{mafioso}__D_{detective}__V_{villager}"
+    name = f"M_{mafioso}" + (f"__Doc_{doctor}" if doctor else "") + f"__D_{detective}__V_{villager}"
     if villager2 and villager2 != villager:
         name += f"__V_{villager2}"
-    return Path(out_dir) / name
+    root = Path(out_dir) if players == 4 else Path(out_dir) / f"players-{players}"
+    return root / name
 
 
 def log_path(
@@ -52,8 +66,14 @@ def log_path(
     villager: str,
     seed: int,
     villager2: str | None = None,
+    *,
+    doctor: str | None = None,
+    players: int = 4,
 ) -> Path:
-    return lineup_dir(out_dir, mafioso, detective, villager, villager2) / f"seed-{seed:04d}.json"
+    folder = lineup_dir(
+        out_dir, mafioso, detective, villager, villager2, doctor=doctor, players=players
+    )
+    return folder / f"seed-{seed:04d}.json"
 
 
 def load_config(path: str | Path | None = None) -> dict[str, Any]:
@@ -61,66 +81,76 @@ def load_config(path: str | Path | None = None) -> dict[str, Any]:
     return yaml.safe_load(path.read_text(encoding="utf-8"))
 
 
+def _dir(out_dir: str | Path, lu: Lineup, players: int) -> Path:
+    return lineup_dir(out_dir, *lu[:3], doctor=lu[3], players=players)
+
+
 def run(
     schedule: list[Lineup],
     games: int,
     out_dir: str | Path,
     *,
+    players: int = 4,
     workers: int = 1,
     config: ModelsConfig | None = None,
     echo: Callable[[str], None] = print,
 ) -> int:
+    def path(lu: Lineup, seed: int) -> Path:
+        return log_path(out_dir, *lu[:3], seed, doctor=lu[3], players=players)
+
     todo = [
-        (lu, seed)
-        for lu in schedule
-        for seed in range(1, games + 1)
-        if not log_path(out_dir, *lu, seed).exists()
+        (lu, seed) for lu in schedule for seed in range(1, games + 1) if not path(lu, seed).exists()
     ]
     config = config or load_models()
-    clients = {alias: build_client(alias, config=config) for lu, _ in todo for alias in lu}
+    clients = {a: build_client(a, config=config) for lu, _ in todo for a in lu if a}
 
     def play(job: tuple[Lineup, int]) -> GameLog:
-        (m, d, v), seed = job
-        aliases = {"mafioso": m, "detective": d, "villager": v}
-        log = play_game({role: clients[a] for role, a in aliases.items()}, seed, aliases=aliases)
-        save_game(log, log_path(out_dir, m, d, v, seed))
+        (m, d, v, doc), seed = job
+        aliases = {"mafioso": m, "detective": d, "villager": v} | ({"doctor": doc} if doc else {})
+        log = play_game(
+            {role: clients[a] for role, a in aliases.items()},
+            seed,
+            n_players=players,
+            aliases=aliases,
+        )
+        save_game(log, path(job[0], seed))
         return log
 
     pool = ThreadPoolExecutor(workers)
     try:
         for i, ((lu, seed), log) in enumerate(zip(todo, pool.map(play, todo), strict=True), 1):
-            echo(f"[{i}/{len(todo)}] {lineup_dir('', *lu)} seed {seed}: {log.outcome.winner}")
+            echo(f"[{i}/{len(todo)}] {_dir('', lu, players)} seed {seed}: {log.outcome.winner}")
     finally:
         # on Ctrl-C, drop the queued games instead of playing them all first
         pool.shutdown(cancel_futures=True)
     return len(todo)
 
 
-def _logs(out_dir: str | Path, lu: Lineup) -> list[GameLog]:
-    return [load_game(p) for p in sorted(lineup_dir(out_dir, *lu).glob("seed-*.json"))]
+def _logs(out_dir: str | Path, lu: Lineup, players: int) -> list[GameLog]:
+    return [load_game(p) for p in sorted(_dir(out_dir, lu, players).glob("seed-*.json"))]
 
 
 def win_tables(
-    out_dir: str | Path, models: list[str], backgrounds: list[str]
+    out_dir: str | Path, models: list[str], backgrounds: list[str], players: int = 4
 ) -> dict[str, dict[tuple[str, str], tuple[int, int]]]:
     # wins of the tested model's side and games played, per capability, model and background
     tables: dict[str, dict[tuple[str, str], tuple[int, int]]] = {}
-    for c in CAPABILITIES:
+    for c in capabilities(players):
         side = "mafia" if c == "deceive" else "town"
         tables[c] = {}
         for m in models:
             for b in backgrounds:
-                logs = _logs(out_dir, lineup(c, m, b))
+                logs = _logs(out_dir, lineup(c, m, b, players), players)
                 tables[c][m, b] = (sum(log.outcome.winner == side for log in logs), len(logs))
     return tables
 
 
 def format_failures(
-    out_dir: str | Path, models: list[str], backgrounds: list[str]
+    out_dir: str | Path, models: list[str], backgrounds: list[str], players: int = 4
 ) -> dict[str, Counter]:
     counts = {m: Counter() for m in models}
-    for lu in lineups(models, backgrounds):
-        for log in _logs(out_dir, lu):
+    for lu in lineups(models, backgrounds, players):
+        for log in _logs(out_dir, lu, players):
             model = {p.name: p.model for p in log.players}
             for msg in log.messages:
                 c = counts[model[msg.speaker]]
@@ -130,4 +160,10 @@ def format_failures(
                 c = counts[model[vote.voter]]
                 c["votes"] += 1
                 c["fallback"] += vote.fallback
+            # Mini-Mafia nights are scripted, so only larger games have night replies
+            if log.config.preset == "mafia":
+                for action in log.night_actions:
+                    c = counts[model[action.actor]]
+                    c["night"] += 1
+                    c["night_fallback"] += action.fallback
     return counts

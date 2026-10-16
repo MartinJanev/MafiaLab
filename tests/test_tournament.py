@@ -18,10 +18,10 @@ def _tmp_cache(tmp_path, monkeypatch):
 
 def test_lineups_follow_the_background_design():
     assert lineups(["a", "b"], ["b"]) == [
-        ("a", "b", "b"),
-        ("b", "b", "a"),
-        ("b", "a", "b"),
-        ("b", "b", "b"),
+        ("a", "b", "b", None),
+        ("b", "b", "a", None),
+        ("b", "a", "b", None),
+        ("b", "b", "b", None),
     ]
     assert len(lineups(["a", "b", "c"], ["b", "c"])) == 3 * 3 * 2 - 2 * 2
 
@@ -48,7 +48,7 @@ def test_parallel_run_gives_the_same_logs(tmp_path):
 def test_tables_count_the_tested_side_and_format_failures(tmp_path):
     run(lineups(["a"], ["b"]), 1, tmp_path, config=FAKES, echo=lambda _: None)
     for lu in lineups(["a"], ["b"]):
-        path = log_path(tmp_path, *lu, 1)
+        path = log_path(tmp_path, *lu[:3], 1)
         log = load_game(path)
         log.outcome.winner = "mafia"
         save_game(log, path)
@@ -62,3 +62,23 @@ def test_tables_count_the_tested_side_and_format_failures(tmp_path):
     a, b = failures["a"], failures["b"]
     assert a["silent"] == 0 and a["fallback"] == a["votes"] > 0
     assert a["messages"] + b["messages"] == 3 * 6
+
+
+def test_larger_games_add_protect_and_their_own_folder(tmp_path):
+    schedule = lineups(["a"], ["b"], players=5)
+    assert schedule == [
+        ("a", "b", "b", "b"),
+        ("b", "b", "a", "b"),
+        ("b", "a", "b", "b"),
+        ("b", "b", "b", "a"),
+    ]
+    assert run(schedule, 1, tmp_path, players=5, config=FAKES, echo=lambda _: None) == 4
+    assert len(list(tmp_path.glob("players-5/M_*__Doc_*__D_*__V_*/seed-0001.json"))) == 4
+    assert not list(tmp_path.glob("M_*"))
+    tables = win_tables(tmp_path, ["a"], ["b"], players=5)
+    assert set(tables) == {"deceive", "detect", "disclose", "protect"}
+    assert all(t["a", "b"][1] == 1 for t in tables.values())
+    assert win_tables(tmp_path, ["a"], ["b"])["deceive"]["a", "b"] == (0, 0)
+    failures = format_failures(tmp_path, ["a", "b"], ["b"], players=5)
+    a = failures["a"]
+    assert a["night"] > 0 and a["night_fallback"] == a["night"]

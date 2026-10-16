@@ -5,10 +5,16 @@ import pytest
 from mafialab import paths
 from mafialab.game.parse import parse_discussion, parse_vote
 from mafialab.game.prompts import (
+    NAMES,
+    composition,
+    composition_text,
     discussion_action,
     game_prompt,
     initial_memory,
     message_line,
+    night_action,
+    start_memory,
+    vote_line,
     voting_action,
 )
 
@@ -128,3 +134,47 @@ def test_parse_discussion_truncates_to_200_chars():
 )
 def test_parse_vote(reply, vote):
     assert parse_vote(reply, ["Bob", "Charlie"]) == vote
+
+
+@pytest.mark.parametrize(
+    ("n", "text"),
+    [
+        (4, "1 mafioso, 1 detective, 2 villagers"),
+        (5, "1 mafioso, 1 doctor, 1 detective, 2 villagers"),
+        (7, "1 mafioso, 1 doctor, 1 detective, 4 villagers"),
+        (8, "2 mafiosos, 1 doctor, 1 detective, 4 villagers"),
+        (11, "2 mafiosos, 1 doctor, 1 detective, 7 villagers"),
+        (12, "3 mafiosos, 1 doctor, 1 detective, 7 villagers"),
+        (16, "3 mafiosos, 1 doctor, 1 detective, 11 villagers"),
+    ],
+)
+def test_composition(n, text):
+    assert composition_text(n) == text
+    assert sum(composition(n).values()) == n
+
+
+@pytest.mark.parametrize("n", [3, 17])
+def test_composition_rejects_other_sizes(n):
+    with pytest.raises(ValueError, match="4 to 16"):
+        composition(n)
+
+
+def test_doctor_rules_only_in_larger_games():
+    mini = game_prompt("Alice", [], "x")
+    big = game_prompt("Alice", [], "x", names=NAMES[:9])
+    assert "Doctors:" not in mini and "1 mafioso, 1 detective, 2 villagers" in mini
+    assert big.count("- Doctors: Town members") == 1 and big.count("- Protection:") == 1
+    assert "2 mafiosos, 1 doctor" in big and "Paul" not in big and "Iris" in big
+
+
+def test_night_action_and_memory_lines():
+    text = night_action(2, "protect", ["Bob", "Eve"])
+    assert text.startswith("#NIGHT 2:") and "to protect from: Bob, Eve." in text
+    assert start_memory("mafioso", "Bob", ["Eve"]) == [
+        "You're Bob, the mafioso",
+        "Your fellow mafiosos are: Eve.",
+    ]
+    assert start_memory("doctor", "Eve", []) == ["You're Eve, the doctor"]
+    assert vote_line("Bob", "Eve", "Bob") == "You voted for Eve."
+    assert vote_line("Bob", "Eve", "Ann") == "Bob voted for Eve."
+    assert len(NAMES) == 16 and NAMES[:4] == ("Alice", "Bob", "Charlie", "Diana")

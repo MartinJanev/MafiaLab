@@ -12,3 +12,4 @@ backgrounds:
   - ollama-mistral-7b
   - ollama-qwen2.5-14b
 games: 10
+players: 4

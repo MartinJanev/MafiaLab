@@ -200,6 +200,29 @@ def test_anthropic_client_prompt_cache_marker():
     assert resp.usage.cached_input_tokens == 900 and resp.usage.input_tokens == 950
 
 
+def test_ollama_widens_num_ctx_for_long_prompts():
+    bodies = []
+
+    def handler(request):
+        bodies.append(json.loads(request.content))
+        return httpx.Response(200, json={"message": {"content": "ok"}, "done_reason": "stop"})
+
+    def client(**params):
+        return OllamaClient(
+            "m",
+            base_url="http://ollama.test",
+            default_params={"max_tokens": 5, **params},
+            http=_mock(handler),
+        )
+
+    client().complete(LLMRequest.from_prompt("short"))
+    client().complete(LLMRequest.from_prompt("x" * 30000))
+    client(options={"num_ctx": 8192}).complete(LLMRequest.from_prompt("x" * 30000))
+    assert "num_ctx" not in bodies[0]["options"]
+    assert bodies[1]["options"]["num_ctx"] == 10240  # 30000 / 3 + 5, rounded up to 2048s
+    assert bodies[2]["options"]["num_ctx"] == 8192
+
+
 def test_ollama_client_options():
     seen = {}
 
