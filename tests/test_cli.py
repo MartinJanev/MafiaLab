@@ -54,28 +54,14 @@ def test_play_runs_and_saves_a_replayable_log(tmp_path, monkeypatch):
     assert result.exit_code == 0, result.output
     assert "I have nothing to add." in result.output and "Winner:" in result.output
     assert "killed night 1" in result.output and "arrested" in result.output
-    log = load_game(tmp_path / "M_fake__D_fake__V_fake" / "seed-0003.json")
+    folder = tmp_path / "players-4" / "M_fake__D_fake__V_fake"
+    log = load_game(folder / "seed-0003.json")
     assert log.seeds == {"game": 3} and {p.model for p in log.players} == {"fake"}
-    turns = tmp_path / "M_fake__D_fake__V_fake" / "seed-0003" / "turns"
+    turns = folder / "seed-0003" / "turns"
     assert len(list(turns.glob("*_response.json"))) == 9
     assert log.messages[0].turn["files"]["response_file"] == "turns/01_discussion_" + (
         log.messages[0].speaker.lower() + "_response.json"
     )
-
-
-def test_play_with_two_villager_models(tmp_path, monkeypatch):
-    from mafialab.game.log import load_game
-    from mafialab.llm import FakeLLM
-
-    fake = FakeLLM(default="I have nothing to add.")
-    monkeypatch.setattr("mafialab.llm.registry.build_client", lambda alias, config: fake)
-    args = ["play", "--mafioso", "fake", "--detective", "fake", "--villager", "fake"]
-    result = runner.invoke(app, [*args, "--villager", "other", "--out-dir", str(tmp_path)])
-    assert result.exit_code == 0, result.output
-    log = load_game(tmp_path / "M_fake__D_fake__V_fake__V_other" / "seed-0000.json")
-    assert sorted(p.model for p in log.players if p.role == "villager") == ["fake", "other"]
-    result = runner.invoke(app, [*args, "--villager", "a", "--villager", "b"])
-    assert result.exit_code != 0 and "once or twice" in result.output
 
 
 def test_tournament_then_summary(tmp_path, monkeypatch):
@@ -121,8 +107,6 @@ def test_play_a_larger_game(tmp_path, monkeypatch):
     assert "Day 1 votes:" in result.output and "survived" in result.output
     assert runner.invoke(app, [*args, "--players", "6", *out]).exit_code != 0
     assert runner.invoke(app, [*args, "--players", "17", "--doctor", "x", *out]).exit_code != 0
-    two = [*args, "--villager", "b", "--players", "6", "--doctor", "x", *out]
-    assert runner.invoke(app, two).exit_code != 0
 
 
 @pytest.mark.parametrize("command", ["tournament", "summary"])

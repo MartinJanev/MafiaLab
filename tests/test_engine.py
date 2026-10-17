@@ -33,8 +33,9 @@ def scripted(vote_for):
 def roles_for(seed):
     # roles are dealt before any model call, so they depend on the seed only
     log = play_game(scripted(lambda name, c: c[0])[1], seed)
+    kill = next(a for a in log.night_actions if a.action == "kill")
     return {p.role: p.name for p in log.players if p.alive_at_start_of_day} | {
-        "victim": log.night_actions[0].target
+        "victim": kill.target
     }
 
 
@@ -77,7 +78,7 @@ def test_mafia_wins_when_the_detective_is_voted_out():
     det, maf = roles["detective"], roles["mafioso"]
     log = play_game(scripted(lambda name, c: maf if name == det else det)[1], seed=5)
     assert log.outcome == log.outcome.model_validate(
-        {"winner": "mafia", "arrested": det, "reason": f"{det} arrested"}
+        {"winner": "mafia", "arrested": det, "reason": f"{det} arrested on day 1"}
     )
     assert log.day_results[0].arrested_role == "detective"
 
@@ -136,25 +137,27 @@ def test_cached_seed_replays_a_nondeterministic_model(tmp_path):
     assert replay == first
 
 
-def test_the_two_villagers_can_use_different_models():
-    _, clients = scripted(lambda name, c: c[0])
-    other, _ = scripted(lambda name, c: c[0])
-    log = play_game(
-        clients | {"villager2": other},
-        seed=6,
-        aliases={**dict.fromkeys(ROLES, "a"), "villager2": "b"},
+def test_four_player_first_night_is_scripted():
+    llm, clients = scripted(lambda name, c: c[0])
+    log = play_game(clients, seed=2)
+    roles = {p.name: p.role for p in log.players}
+    investigate, kill = log.night_actions
+    assert roles[investigate.target] == "mafioso" and investigate.result == "mafioso"
+    assert roles[kill.target] == "villager" and kill.result == "killed"
+    assert not investigate.turn and not kill.turn
+    assert {r.tags["action"] for r in llm.calls} == {"discussion", "vote"}
+    detective = next(n for n, r in roles.items() if r == "detective")
+    seen = next(r.prompt_text() for r in llm.calls if r.tags["player"] == detective)
+    assert (
+        f"You investigated {investigate.target} and discovered that they are the mafioso." in seen
     )
-    villagers = [p for p in log.players if p.role == "villager"]
-    assert sorted(p.model for p in villagers) == ["a", "b"]
-    # with seed 6 the second villager survives the night: two messages and a vote
-    assert len(other.calls) == 3
 
 
 def _digest(obj) -> str:
     return hashlib.sha256(json.dumps(obj, sort_keys=True).encode()).hexdigest()
 
 
-def _mini_games():
+def _four_player_games():
     games = []
     for seed in range(1, 6):
         llm, clients = scripted(lambda name, c: c[-1])
@@ -171,11 +174,11 @@ def _mini_games():
 
 
 SAVED_SEED = 1  # the doctor guards the first kill target
-MINI_GOLDEN = "680ff1a8f5696fccc73ecc1b1f9c7c0b51ee7983169fa2cc549a17fa3233c26c"
+FOUR_GOLDEN = "7d8ccb1f1e71af184ea544bbbaf92876e5077c71b9ee7b8a997f1c853cb2fa0c"
 
 
-def test_mini_mafia_is_unchanged():
-    assert _digest(_mini_games()) == MINI_GOLDEN
+def test_four_player_games_are_unchanged():
+    assert _digest(_four_player_games()) == FOUR_GOLDEN
 
 
 def chooser(pick):
@@ -300,7 +303,7 @@ def _larger_games():
     return games
 
 
-LARGER_GOLDEN = "363096eb244563e21bcf32ecd591ebe8393229bc0939936096e280052d4bb4da"
+LARGER_GOLDEN = "1142aeadeb01edc41954808bc88031e65384cd596e9b631e2abe59b0f36745f4"
 
 
 def test_larger_games_are_unchanged():

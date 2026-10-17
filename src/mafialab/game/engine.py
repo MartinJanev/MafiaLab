@@ -23,7 +23,6 @@ from mafialab.game.prompts import (
     composition,
     discussion_action,
     game_prompt,
-    initial_memory,
     line,
     message_line,
     night_action,
@@ -33,8 +32,6 @@ from mafialab.game.prompts import (
 )
 from mafialab.game.turns import TurnWriter
 from mafialab.llm import LLMClient, LLMRequest
-
-SEATS = ("mafioso", "detective", "villager", "villager2")
 
 
 def play_game(
@@ -48,20 +45,15 @@ def play_game(
     progress: Callable[[str], None] | None = None,
     output_dir: str | Path | None = None,
 ) -> GameLog:
-    # clients and aliases are keyed by seat, villager2 falls back to villager
+    # clients and aliases are keyed by role
     rng = random.Random(seed)
-    mini = n_players == 4
     names = NAMES[:n_players]
-    seat_list = SEATS if mini else [r for r, c in composition(n_players).items() for _ in range(c)]
-    game_id = game_id or (f"mini-mafia:seed-{seed}" if mini else f"mafia-{n_players}:seed-{seed}")
+    seats = [r for r, c in composition(n_players).items() for _ in range(c)]
+    game_id = game_id or f"mafia-{n_players}:seed-{seed}"
     aliases = aliases or {role: client.model for role, client in clients.items()}
     turn_writer = TurnWriter(output_dir) if output_dir else None
 
-    seats = dict(zip(names, rng.sample(seat_list, k=len(seat_list)), strict=True))
-    roles = {n: s.removesuffix("2") for n, s in seats.items()}
-
-    def by_seat(mapping, name):
-        return mapping.get(seats[name]) or mapping[roles[name]]
+    roles = dict(zip(names, rng.sample(seats, k=len(seats)), strict=True))
 
     memory: dict[str, list[str]] = {}
     alive: list[str] = []
@@ -82,9 +74,9 @@ def play_game(
                 "day": str(day),
             },
         )
-        response = by_seat(clients, name).complete(request)
+        response = clients[roles[name]].complete(request)
         if progress:
-            who = f"{name} ({roles[name]}, {by_seat(aliases, name)})"
+            who = f"{name} ({roles[name]}, {aliases[roles[name]]})"
             tag = " cached" if response.cached else ""
             progress(f"{who} {kind}: {response.latency_s:.2f}s{tag}")
         turn = {"reply": response.text}
@@ -153,8 +145,13 @@ def play_game(
         alive.remove(arrested)
         return arrested
 
-    def choose(actor: str, night: int, action: str, candidates: list[str]) -> str:
-        reply, turn = ask(actor, night_action(night, action, candidates), action, night)
+    def choose(
+        actor: str, night: int, action: str, candidates: list[str], forced: str | None = None
+    ) -> str:
+        if forced:
+            reply, turn = forced, None
+        else:
+            reply, turn = ask(actor, night_action(night, action, candidates), action, night)
         target = parse_vote(reply, candidates)
         night_actions.append(
             NightAction(
@@ -174,8 +171,12 @@ def play_game(
         mafia = [n for n in alive if roles[n] == "mafioso"]
         detective = next((n for n in alive if roles[n] == "detective"), None)
         doctor = next((n for n in alive if roles[n] == "doctor"), None)
+        # with 4 players the first night is scripted: the detective finds the mafioso and a
+        # random villager dies, so the one day decides the game
+        scripted = n_players == 4 and k == 1
         if detective:
-            seen = choose(detective, k, "investigate", [n for n in alive if n != detective])
+            others = [n for n in alive if n != detective]
+            seen = choose(detective, k, "investigate", others, mafia[0] if scripted else None)
             night_actions[-1].result = roles[seen]
             memory[detective].append(line("investigated", target=seen, role=roles[seen]))
         protected = None
@@ -185,7 +186,8 @@ def play_game(
             protected = choose(doctor, k, "protect", [n for n in alive if n != last])
             memory[doctor].append(line("protected", target=protected))
         targets = [n for n in alive if roles[n] != "mafioso"]
-        picks = [choose(m, k, "kill", targets) for m in mafia]
+        forced = rng.choice([n for n in alive if roles[n] == "villager"]) if scripted else None
+        picks = [choose(m, k, "kill", targets, forced) for m in mafia]
         kills = night_actions[-len(mafia) :]
         tally = {n: picks.count(n) for n in picks}
         victim = rng.choice([n for n, c in tally.items() if c == max(tally.values())])
@@ -212,59 +214,36 @@ def play_game(
         # at parity the mafia can no longer lose a vote
         return "town" if mafia == 0 else "mafia" if mafia >= len(alive) - mafia else None
 
-    if mini:
-        mafioso = next(n for n in names if roles[n] == "mafioso")
-        detective = next(n for n in names if roles[n] == "detective")
-        # the night is scripted: a random villager dies and the detective finds the mafioso
-        victim = rng.choice([n for n in names if roles[n] == "villager"])
-        memory.update({n: initial_memory(roles[n], n, victim, mafioso) for n in names})
-        alive.extend(n for n in names if n != victim)
-        night_actions.extend(
-            [
-                NightAction(night=1, actor=mafioso, action="kill", target=victim),
-                NightAction(
-                    night=1, actor=detective, action="investigate", target=mafioso, result="mafioso"
-                ),
-            ]
-        )
-        day1 = set(alive)
-        arrested = run_day(1)
-        winner = "town" if arrested == mafioso else "mafia"
-        reason = f"{arrested} arrested"
-    else:
-        for n in names:
-            team = [m for m in names if m != n and roles[m] == "mafioso"]
-            memory[n] = start_memory(roles[n], n, team if roles[n] == "mafioso" else [])
-        alive.extend(names)
-        day1 = None
-        for k in itertools.count(1):
-            victim = night(k)
-            day1 = day1 or set(alive)
-            if winner := side_won():
-                reason = f"{victim} killed on night {k}"
-                break
-            for n in alive:
-                memory[n].append(line("day", day=k))
-            arrested = run_day(k)
-            if winner := side_won():
-                reason = f"{arrested} arrested on day {k}"
-                break
+    for n in names:
+        team = [m for m in names if m != n and roles[m] == "mafioso"]
+        memory[n] = start_memory(roles[n], n, team if roles[n] == "mafioso" else [])
+    alive.extend(names)
+    day1 = None
+    for k in itertools.count(1):
+        victim = night(k)
+        day1 = day1 or set(alive)
+        if winner := side_won():
+            reason = f"{victim} killed on night {k}"
+            break
+        for n in alive:
+            memory[n].append(line("day", day=k))
+        arrested = run_day(k)
+        if winner := side_won():
+            reason = f"{arrested} arrested on day {k}"
+            break
 
     return GameLog(
         game_id=game_id,
         source="engine",
         config=GameConfig(
-            preset="mini_mafia" if mini else "mafia",
+            preset="mafia",
             n_players=len(names),
             names=list(names),
             discussion_rounds=discussion_rounds,
-            prompt_variant="A1",
         ),
         seeds={"game": seed},
         players=[
-            Player(
-                name=n, role=roles[n], model=by_seat(aliases, n), alive_at_start_of_day=n in day1
-            )
+            Player(name=n, role=roles[n], model=aliases[roles[n]], alive_at_start_of_day=n in day1)
             for n in names
         ],
         night_actions=night_actions,

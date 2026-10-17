@@ -11,19 +11,24 @@ import yaml
 from mafialab import paths
 from mafialab.game.engine import play_game
 from mafialab.game.log import GameLog, load_game, save_game
+from mafialab.game.prompts import composition
 from mafialab.llm.registry import ModelsConfig, build_client, load_models
 
 CAPABILITIES = ("deceive", "detect", "disclose")
 Lineup = tuple[str, str, str, str | None]
 
 
+def has_doctor(players: int) -> bool:
+    return "doctor" in composition(players)
+
+
 def capabilities(players: int = 4) -> tuple[str, ...]:
-    return CAPABILITIES if players == 4 else (*CAPABILITIES, "protect")
+    return (*CAPABILITIES, "protect") if has_doctor(players) else CAPABILITIES
 
 
 def lineup(capability: str, model: str, background: str, players: int = 4) -> Lineup:
     # (mafioso, detective, villager, doctor), every seat of a role plays one model
-    doctor = None if players == 4 else background
+    doctor = background if has_doctor(players) else None
     return {
         "deceive": (model, background, background, doctor),
         "detect": (background, background, model, doctor),
@@ -47,16 +52,12 @@ def lineup_dir(
     mafioso: str,
     detective: str,
     villager: str,
-    villager2: str | None = None,
     *,
     doctor: str | None = None,
     players: int = 4,
 ) -> Path:
     name = f"M_{mafioso}" + (f"__Doc_{doctor}" if doctor else "") + f"__D_{detective}__V_{villager}"
-    if villager2 and villager2 != villager:
-        name += f"__V_{villager2}"
-    root = Path(out_dir) if players == 4 else Path(out_dir) / f"players-{players}"
-    return root / name
+    return Path(out_dir) / f"players-{players}" / name
 
 
 def log_path(
@@ -65,14 +66,11 @@ def log_path(
     detective: str,
     villager: str,
     seed: int,
-    villager2: str | None = None,
     *,
     doctor: str | None = None,
     players: int = 4,
 ) -> Path:
-    folder = lineup_dir(
-        out_dir, mafioso, detective, villager, villager2, doctor=doctor, players=players
-    )
+    folder = lineup_dir(out_dir, mafioso, detective, villager, doctor=doctor, players=players)
     return folder / f"seed-{seed:04d}.json"
 
 
@@ -160,9 +158,9 @@ def format_failures(
                 c = counts[model[vote.voter]]
                 c["votes"] += 1
                 c["fallback"] += vote.fallback
-            # Mini-Mafia nights are scripted, so only larger games have night replies
-            if log.config.preset == "mafia":
-                for action in log.night_actions:
+            # scripted night actions have no model reply
+            for action in log.night_actions:
+                if action.turn is not None:
                     c = counts[model[action.actor]]
                     c["night"] += 1
                     c["night_fallback"] += action.fallback

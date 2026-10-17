@@ -56,16 +56,6 @@ def composition_text(n: int) -> str:
     return ", ".join(f"{c} {r}s" if c > 1 else f"{c} {r}" for r, c in composition(n).items())
 
 
-def initial_memory(role: str, name: str, victim: str, mafioso: str) -> list[str]:
-    text = template(f"paper/memory_{role}_A2")
-    # the paper's detective template wraps this sentence over two lines
-    text = text.replace(
-        "discovered that they\nare the mafioso.", "discovered that they are the mafioso."
-    )
-    text = text.replace("{player.name}", name).replace("{victim.name}", victim)
-    return text.replace("{mafioso.name}", mafioso).splitlines()
-
-
 def message_line(speaker: str, listener: str, message: str | None) -> str:
     own = speaker == listener
     if message is None:
@@ -104,8 +94,7 @@ def vote_line(voter: str, target: str, listener: str) -> str:
 def game_prompt(
     name: str, memory: list[str], action: str, names: tuple[str, ...] = NAMES[:4]
 ) -> str:
-    text = template("paper/game_prompt_A1" if len(names) == 4 else "mafia/game_prompt")
-    return text.format(
+    return template("mafia/game_prompt").format(
         composition=composition_text(len(names)),
         name=name,
         other_players=", ".join(n for n in names if n != name),

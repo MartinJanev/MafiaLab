@@ -1,11 +1,13 @@
 # MafiaLab
 
-LLM agents playing Mini-Mafia, following the paper *Deceive, Detect, and Disclose: Large Language
-Models Playing Mini-Mafia* (ICLR 2026 submission).
+LLM agents playing Mafia, built on the paper *Deceive, Detect, and Disclose: Large Language Models
+Playing Mini-Mafia* (ICLR 2026 submission).
 
-Four players: one mafioso, one detective, two villagers. The night is scripted (the mafioso kills a
-villager, the detective learns who the mafioso is), then the three survivors talk for two rounds and
-vote. Town wins if the mafioso is arrested.
+One game for 4 to 16 players. Nights and days alternate until no mafioso is left (town wins) or
+the mafiosos are as many as everyone else (mafia wins). The smallest game is the paper's
+Mini-Mafia: one mafioso, one detective, two villagers. Its first night is scripted (the mafioso
+kills a villager, the detective learns who the mafioso is), so the three survivors talk for two
+rounds and one vote decides the game.
 
 ## Setup
 
@@ -34,20 +36,18 @@ mafialab play --mafioso ollama-llama3.1-8b --detective ollama-mistral-7b \
               --villager ollama-qwen2.5-7b --seed 1
 ```
 
-Give `--villager` twice to put a different model on each villager, for example
-`--villager ollama-qwen2.5-7b --villager ollama-gemma3-4b`.
-
-This prints the transcript and saves the log to `data/games/`. Replies are cached in
+This prints the transcript and saves the log to `data/games/players-4/`. Replies are cached in
 `data/cache/`, so running the same seed again replays the same game.
 
 ## Larger games
 
-`--players N` (5 to 16) plays a full Mafia game instead of Mini-Mafia: nights and days alternate
-until one side is gone, and the models choose the night actions themselves. A doctor joins the
-town and protects one player each night, so these games also need `--doctor`.
+`--players N` (4 to 16, default 4) sets the game size. From 5 players the models choose the night
+actions themselves, and a doctor joins the town and protects one player each night, so these
+games also need `--doctor`.
 
 | Players | Mafiosos | Doctor | Detective | Villagers |
 |---------|----------|--------|-----------|-----------|
+| 4       | 1        | -      | 1         | 2         |
 | 5-7     | 1        | 1      | 1         | the rest  |
 | 8-11    | 2        | 1      | 1         | the rest  |
 | 12-16   | 3        | 1      | 1         | the rest  |
@@ -58,7 +58,7 @@ mafialab play --players 6 --mafioso ollama-qwen2.5-7b --detective ollama-qwen2.5
 ```
 
 Logs go to `data/games/players-N/`. With players voting at random, a 12-player game takes about
-120 model calls (Mini-Mafia takes 9), so expect minutes per game on local models.
+120 model calls (4 players take 9), so expect minutes per game on local models.
 
 ## Tournament
 
@@ -85,7 +85,7 @@ the others, and a fourth table, protect, has the tested model as the doctor.
 
 ```
 paper/                the paper, its tables and example transcripts
-prompts/              what models read: the paper's prompts, larger-game prompt, memory lines
+prompts/              what models read: the game prompt, memory lines, the paper's prompts
 configs/              model aliases, provider settings, tournament setup
 src/mafialab/llm/     LLM clients (Ollama, OpenAI-compatible, Anthropic), cache, retries
 src/mafialab/game/    prompt filling, reply parsing, game loop, game log

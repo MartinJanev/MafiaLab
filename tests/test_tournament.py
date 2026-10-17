@@ -30,8 +30,8 @@ def test_run_saves_every_game_and_resumes(tmp_path):
     schedule = lineups(["a", "b"], ["b"])
     lines = []
     assert run(schedule, 3, tmp_path, config=FAKES, echo=lines.append) == 12
-    assert len(list(tmp_path.glob("M_*/seed-*.json"))) == 12
-    assert lines[0].startswith("[1/12] M_a__D_b__V_b seed 1: ")
+    assert len(list(tmp_path.glob("players-4/M_*/seed-*.json"))) == 12
+    assert lines[0].startswith("[1/12] players-4/M_a__D_b__V_b seed 1: ")
     assert run(schedule, 3, tmp_path, config=FAKES) == 0
     assert run(schedule, 4, tmp_path, config=FAKES) == 4
 
@@ -40,7 +40,7 @@ def test_parallel_run_gives_the_same_logs(tmp_path):
     schedule = lineups(["a", "c"], ["b"])
     run(schedule, 3, tmp_path / "one", config=FAKES, echo=lambda _: None)
     run(schedule, 3, tmp_path / "four", workers=4, config=FAKES, echo=lambda _: None)
-    for path in (tmp_path / "one").glob("M_*/seed-*.json"):
+    for path in (tmp_path / "one").glob("players-4/M_*/seed-*.json"):
         twin = tmp_path / "four" / path.relative_to(tmp_path / "one")
         assert twin.read_bytes() == path.read_bytes()
 
@@ -74,7 +74,7 @@ def test_larger_games_add_protect_and_their_own_folder(tmp_path):
     ]
     assert run(schedule, 1, tmp_path, players=5, config=FAKES, echo=lambda _: None) == 4
     assert len(list(tmp_path.glob("players-5/M_*__Doc_*__D_*__V_*/seed-0001.json"))) == 4
-    assert not list(tmp_path.glob("M_*"))
+    assert not list(tmp_path.glob("players-4/M_*"))
     tables = win_tables(tmp_path, ["a"], ["b"], players=5)
     assert set(tables) == {"deceive", "detect", "disclose", "protect"}
     assert all(t["a", "b"][1] == 1 for t in tables.values())

@@ -9,7 +9,7 @@ from mafialab import __version__
 
 app = typer.Typer(
     name="mafialab",
-    help="MafiaLab: LLM agents playing Mini-Mafia.",
+    help="MafiaLab: LLM agents playing Mafia.",
     no_args_is_help=True,
     add_completion=False,
 )
@@ -66,9 +66,7 @@ def models_list(models_file: Path | None = typer.Option(None, "--models")) -> No
 def play(
     mafioso: str = typer.Option(..., help="Model alias for the mafioso."),
     detective: str = typer.Option(..., help="Model alias for the detective."),
-    villager: list[str] = typer.Option(
-        ..., help="Model alias for the villagers. Give it twice for two different villagers."
-    ),
+    villager: str = typer.Option(..., help="Model alias for the villagers."),
     doctor: str | None = typer.Option(None, help="Model alias for the doctor (5 or more players)."),
     players: int = typer.Option(4, help="Players per game, 4 to 16."),
     seed: int = typer.Option(0, help="Game seed."),
@@ -79,34 +77,16 @@ def play(
     from mafialab.game.engine import play_game
     from mafialab.game.log import save_game
     from mafialab.llm.registry import build_client, load_models
-    from mafialab.tournament import log_path
+    from mafialab.tournament import has_doctor, log_path
 
     _check_players(players)
-    if len(villager) > 2:
-        raise typer.BadParameter("give --villager once or twice", param_hint="--villager")
-    if players > 4 and not doctor:
+    doctor = doctor if has_doctor(players) else None
+    if has_doctor(players) and not doctor:
         raise typer.BadParameter("needed for 5 or more players", param_hint="--doctor")
-    if players > 4 and len(villager) > 1:
-        raise typer.BadParameter(
-            "give --villager once for 5 or more players", param_hint="--villager"
-        )
-    aliases = {
-        "mafioso": mafioso,
-        "detective": detective,
-        "villager": villager[0],
-        "villager2": villager[-1],
-    } | ({"doctor": doctor} if players > 4 else {})
+    aliases = {"mafioso": mafioso, "detective": detective, "villager": villager}
+    aliases |= {"doctor": doctor} if doctor else {}
     out_dir = out_dir or paths.repo_root() / "data" / "games"
-    path = log_path(
-        out_dir,
-        mafioso,
-        detective,
-        villager[0],
-        seed,
-        villager[-1],
-        doctor=doctor if players > 4 else None,
-        players=players,
-    )
+    path = log_path(out_dir, mafioso, detective, villager, seed, doctor=doctor, players=players)
     config = load_models()
     log = play_game(
         {role: build_client(alias, config=config) for role, alias in aliases.items()},

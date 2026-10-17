@@ -10,43 +10,12 @@ from mafialab.game.prompts import (
     composition_text,
     discussion_action,
     game_prompt,
-    initial_memory,
     message_line,
     night_action,
     start_memory,
     vote_line,
     voting_action,
 )
-
-# Alice mafioso, Bob detective, Charlie villager, Diana the night victim.
-MEMORIES = {
-    "mafioso": [
-        "You're Alice, the mafioso",
-        "Night 1 begins.",
-        "You killed Diana.",
-        "Diana was found dead.",
-        "Day 1 begins.",
-    ],
-    "detective": [
-        "You're Bob, the detective",
-        "Night 1 begins.",
-        "Diana was found dead.",
-        "You investigated Alice and discovered that they are the mafioso.",
-        "Day 1 begins.",
-    ],
-    "villager": [
-        "You're Charlie, the villager",
-        "Night 1 begins.",
-        "Diana was found dead.",
-        "Day 1 begins.",
-    ],
-}
-NAME = {"mafioso": "Alice", "detective": "Bob", "villager": "Charlie"}
-
-
-@pytest.mark.parametrize("role", MEMORIES)
-def test_initial_memory(role):
-    assert initial_memory(role, NAME[role], victim="Diana", mafioso="Alice") == MEMORIES[role]
 
 
 def test_message_lines():
@@ -69,27 +38,22 @@ def test_action_texts():
     )
 
 
-@pytest.mark.parametrize("role", MEMORIES)
-def test_game_prompt_is_the_paper_template_filled(role):
-    name = NAME[role]
+def test_game_prompt_is_the_template_filled():
     memory = [
-        *MEMORIES[role],
-        message_line("Charlie", name, "Hello."),
-        message_line("Bob", name, None),
+        "You're Bob, the detective",
+        message_line("Charlie", "Bob", "Hello."),
+        message_line("Bob", "Bob", None),
     ]
     action = discussion_action(2)
-    raw = (paths.prompts_dir() / "paper/game_prompt_A1.txt").read_text()
+    raw = (paths.prompts_dir() / "mafia/game_prompt.txt").read_text()
     expected = (
         raw.replace("{composition}", "1 mafioso, 1 detective, 2 villagers")
-        .replace("{name}", name)
-        .replace(
-            "{other_players}",
-            ", ".join(n for n in ("Alice", "Bob", "Charlie", "Diana") if n != name),
-        )
+        .replace("{name}", "Bob")
+        .replace("{other_players}", "Alice, Charlie, Diana")
         .replace("{memory}", "\n".join(memory))
         .replace("{action_specific_content}", action.removesuffix("\n"))
     )
-    prompt = game_prompt(name, memory, action)
+    prompt = game_prompt("Bob", memory, action)
     assert prompt == expected
     assert prompt.startswith("[INST]\n#CONTEXT:") and prompt.endswith("[/INST]\n")
     assert "{" not in prompt and "[round_num]" not in prompt
@@ -159,21 +123,17 @@ def test_composition_rejects_other_sizes(n):
         composition(n)
 
 
-def test_doctor_rules_only_in_larger_games():
-    mini = game_prompt("Alice", [], "x")
-    big = game_prompt("Alice", [], "x", names=NAMES[:9])
-    assert "Doctors:" not in mini and "1 mafioso, 1 detective, 2 villagers" in mini
-    assert big.count("- Doctors: Town members") == 1 and big.count("- Protection:") == 1
-    assert "2 mafiosos, 1 doctor" in big and "Paul" not in big and "Iris" in big
-
-
-def test_larger_games_state_their_own_rules():
-    mini = game_prompt("Alice", [], "x")
-    big = game_prompt("Alice", [], "x", names=NAMES[:9])
-    for paper_text in ("One randomly selected mafioso", "eliminate all non-mafiosos"):
-        assert paper_text in mini and paper_text not in big
+def test_every_size_reads_the_same_rules():
+    four = game_prompt("Alice", [], "x")
+    nine = game_prompt("Alice", [], "x", names=NAMES[:9])
+    assert "1 mafioso, 1 detective, 2 villagers" in four
+    assert "2 mafiosos, 1 doctor" in nine and "Paul" not in nine and "Iris" in nine
+    rules = four.index("#GAME PLAYERS")
+    assert four[:rules] == nine[:rules]
     for ours in ("chosen most often", "at least as many", "two nights in a row"):
-        assert ours not in mini and ours in big
+        assert ours in four
+    for paper_text in ("One randomly selected mafioso", "eliminate all non-mafiosos"):
+        assert paper_text not in four
 
 
 def test_night_action_and_memory_lines():
