@@ -78,7 +78,7 @@ def test_game_prompt_is_the_paper_template_filled(role):
         message_line("Bob", name, None),
     ]
     action = discussion_action(2)
-    raw = (paths.repo_root() / "paper/prompts/game_prompt_A1.txt").read_text()
+    raw = (paths.prompts_dir() / "paper/game_prompt_A1.txt").read_text()
     expected = (
         raw.replace("{composition}", "1 mafioso, 1 detective, 2 villagers")
         .replace("{name}", name)

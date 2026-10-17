@@ -24,6 +24,7 @@ from mafialab.game.prompts import (
     discussion_action,
     game_prompt,
     initial_memory,
+    line,
     message_line,
     night_action,
     start_memory,
@@ -138,7 +139,7 @@ def play_game(
         arrested = rng.choice(tied)
         for listener in alive:
             memory[listener].extend(vote_line(v.voter, v.target, listener) for v in day_votes)
-            memory[listener].append(f"{arrested} was arrested.")
+            memory[listener].append(line("arrested", name=arrested))
         day_results.append(
             DayResult(
                 day=day,
@@ -169,22 +170,20 @@ def play_game(
 
     def night(k: int) -> str | None:
         for n in alive:
-            memory[n].append(f"Night {k} begins.")
+            memory[n].append(line("night", night=k))
         mafia = [n for n in alive if roles[n] == "mafioso"]
         detective = next((n for n in alive if roles[n] == "detective"), None)
         doctor = next((n for n in alive if roles[n] == "doctor"), None)
         if detective:
             seen = choose(detective, k, "investigate", [n for n in alive if n != detective])
             night_actions[-1].result = roles[seen]
-            memory[detective].append(
-                f"You investigated {seen} and discovered that they are the {roles[seen]}."
-            )
+            memory[detective].append(line("investigated", target=seen, role=roles[seen]))
         protected = None
         if doctor:
             # the doctor is alive, so their last protection was last night
             last = next((a.target for a in reversed(night_actions) if a.action == "protect"), None)
             protected = choose(doctor, k, "protect", [n for n in alive if n != last])
-            memory[doctor].append(f"You protected {protected}.")
+            memory[doctor].append(line("protected", target=protected))
         targets = [n for n in alive if roles[n] != "mafioso"]
         picks = [choose(m, k, "kill", targets) for m in mafia]
         kills = night_actions[-len(mafia) :]
@@ -195,17 +194,17 @@ def play_game(
             a.result = ("saved" if saved else "killed") if a.target == victim else "outvoted"
         for m in mafia:
             memory[m].extend(
-                f"You chose to kill {a.target}."
+                line("kill_own", target=a.target)
                 if a.actor == m
-                else f"{a.actor} chose to kill {a.target}."
+                else line("kill_other", actor=a.actor, target=a.target)
                 for a in kills
             )
             if len(mafia) > 1:
-                memory[m].append(f"The mafia attacks {victim}.")
+                memory[m].append(line("mafia_attacks", target=victim))
         if not saved:
             alive.remove(victim)
         for n in alive:
-            memory[n].append("Nobody was found dead." if saved else f"{victim} was found dead.")
+            memory[n].append(line("nobody_dead") if saved else line("found_dead", name=victim))
         return None if saved else victim
 
     def side_won() -> str | None:
@@ -245,7 +244,7 @@ def play_game(
                 reason = f"{victim} killed on night {k}"
                 break
             for n in alive:
-                memory[n].append(f"Day {k} begins.")
+                memory[n].append(line("day", day=k))
             arrested = run_day(k)
             if winner := side_won():
                 reason = f"{arrested} arrested on day {k}"

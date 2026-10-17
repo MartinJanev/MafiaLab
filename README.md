@@ -84,10 +84,11 @@ the others, and a fourth table, protect, has the tested model as the doctor.
 ## Layout
 
 ```
-paper/                the paper, its tables, prompts and example transcripts
+paper/                the paper, its tables and example transcripts
+prompts/              what models read: the paper's prompts, larger-game prompt, memory lines
 configs/              model aliases, provider settings, tournament setup
 src/mafialab/llm/     LLM clients (Ollama, OpenAI-compatible, Anthropic), cache, retries
-src/mafialab/game/    prompts, reply parsing, game loop, game log
+src/mafialab/game/    prompt filling, reply parsing, game loop, game log
 src/mafialab/tournament.py  lineups, resumable runner, win tables
 tests/
 ```

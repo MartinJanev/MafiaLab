@@ -280,3 +280,28 @@ def test_every_mafioso_picks_and_sees_the_others_pick():
         if r.tags["player"] == mafia[0] and r.tags["action"] == "discussion"
     ]
     assert seen and f"{mafia[1]} chose to kill {picks[mafia[1]]}." in seen[0]
+
+
+def _larger_games():
+    games = []
+    for n in (5, 8, 12):
+        for seed in range(1, 4):
+            pick = random.Random(seed).choice
+            llm, clients = chooser(lambda name, kind, c, pick=pick: pick(c))
+            log = play_game(clients, seed=seed, n_players=n)
+            games.append(
+                {
+                    "prompts": [r.prompt_text() for r in llm.calls],
+                    "log": log.model_dump(
+                        mode="json", exclude={"schema_version", "metadata"}, exclude_none=True
+                    ),
+                }
+            )
+    return games
+
+
+LARGER_GOLDEN = "363096eb244563e21bcf32ecd591ebe8393229bc0939936096e280052d4bb4da"
+
+
+def test_larger_games_are_unchanged():
+    assert _digest(_larger_games()) == LARGER_GOLDEN

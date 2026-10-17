@@ -19,6 +19,10 @@ def configs_dir() -> Path:
     return repo_root() / "configs"
 
 
+def prompts_dir() -> Path:
+    return repo_root() / "prompts"
+
+
 def models_yaml() -> Path:
     return configs_dir() / "models.yaml"
 
