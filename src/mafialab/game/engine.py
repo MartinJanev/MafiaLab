@@ -45,7 +45,22 @@ def play_game(
     progress: Callable[[str], None] | None = None,
     output_dir: str | Path | None = None,
 ) -> GameLog:
-    # clients and aliases are keyed by role
+    """
+    Play one whole game: nights and days take turns until the town or the mafia has won.
+    :param clients: The model that plays each role, e.g. {"mafioso": ..., "detective": ...,
+        "villager": ...}. Every player with the same role is played by the same model.
+    :param seed: Decides who gets which role, the speaking order and the tie-breaks. With the
+        cache on, the same seed and models replay the same game.
+    :param n_players: 4 to 16. Games of 5 or more also have a doctor.
+    :param aliases: The model name written in the log for each role. Defaults to the client's
+        model id.
+    :param game_id: The game's name in the log and cost tags. Defaults to "mafia-<n>:seed-<seed>".
+    :param discussion_rounds: How many times each living player speaks every day.
+    :param progress: Called with one line of text after every model reply, to show live progress.
+    :param output_dir: If given, every raw model reply is also saved there as JSON files.
+    :return: Everything that happened: the roles, every night action, message and vote, and who
+        won.
+    """
     rng = random.Random(seed)
     names = NAMES[:n_players]
     seats = [r for r, c in composition(n_players).items() for _ in range(c)]
@@ -63,6 +78,15 @@ def play_game(
     night_actions: list[NightAction] = []
 
     def ask(name: str, action: str, kind: str, day: int = 1) -> tuple[str, dict]:
+        """
+        Show one player everything they know so far and ask them to act.
+        :param name: The player whose turn it is.
+        :param action: The instruction that ends the prompt (the discussion, vote or night text).
+        :param kind: A short label for the turn ("discussion", "vote", "kill", ...), used in the
+            progress line, the cost tags and the saved file names.
+        :param day: The day or night number.
+        :return: The reply text, and a small dict for the log with the reply and its saved files.
+        """
         request = LLMRequest.from_prompt(
             game_prompt(name, memory[name], action, names),
             sample_index=seed,  # with the cache, the same seed replays the same game
@@ -87,6 +111,13 @@ def play_game(
         return response.text, turn
 
     def run_day(day: int) -> str:
+        """
+        One day: everyone alive talks for a few rounds in a random order, then everyone votes
+        at the same time and the player with the most votes is arrested (a tie is broken at
+        random).
+        :param day: The day number.
+        :return: The arrested player.
+        """
         for rnd in range(1, discussion_rounds + 1):
             for position, speaker in enumerate(rng.sample(alive, k=len(alive)), start=1):
                 reply, turn = ask(
@@ -132,6 +163,7 @@ def play_game(
         for listener in alive:
             memory[listener].extend(vote_line(v.voter, v.target, listener) for v in day_votes)
             memory[listener].append(line("arrested", name=arrested))
+        # keep the day's result for the log
         day_results.append(
             DayResult(
                 day=day,
@@ -148,6 +180,17 @@ def play_game(
     def choose(
         actor: str, night: int, action: str, candidates: list[str], forced: str | None = None
     ) -> str:
+        """
+        Ask one player for their night target and record the choice.
+        :param actor: The player acting.
+        :param night: The night number.
+        :param action: "investigate", "protect" or "kill"; it is written into the prompt.
+        :param candidates: Who they may pick. A reply that names nobody on this list gets a
+            random pick instead.
+        :param forced: Skip the model and use this target (the scripted first night with 4
+            players).
+        :return: The chosen target.
+        """
         if forced:
             reply, turn = forced, None
         else:
@@ -166,34 +209,51 @@ def play_game(
         return night_actions[-1].target
 
     def night(k: int) -> str | None:
+        """
+        One night: the detective learns one player's role, the doctor protects one player and
+        the mafia attack one player. In the morning everyone hears who died.
+        :param k: The night number.
+        :return: The player who died, or None if the doctor protected the mafia's target.
+        """
         for n in alive:
             memory[n].append(line("night", night=k))
+
+        # who is still alive to act tonight
         mafia = [n for n in alive if roles[n] == "mafioso"]
         detective = next((n for n in alive if roles[n] == "detective"), None)
         doctor = next((n for n in alive if roles[n] == "doctor"), None)
+
         # with 4 players the first night is scripted: the detective finds the mafioso and a
         # random villager dies, so the one day decides the game
         scripted = n_players == 4 and k == 1
+        # the detective learns the true role of one other player
         if detective:
             others = [n for n in alive if n != detective]
             seen = choose(detective, k, "investigate", others, mafia[0] if scripted else None)
             night_actions[-1].result = roles[seen]
             memory[detective].append(line("investigated", target=seen, role=roles[seen]))
         protected = None
+        # the doctor protects anyone except the player they protected last night
         if doctor:
             # the doctor is alive, so their last protection was last night
             last = next((a.target for a in reversed(night_actions) if a.action == "protect"), None)
             protected = choose(doctor, k, "protect", [n for n in alive if n != last])
             memory[doctor].append(line("protected", target=protected))
+        # the mafia can attack anyone who is not mafia
         targets = [n for n in alive if roles[n] != "mafioso"]
+        # on the scripted night a random villager is the target instead of asking the mafia
         forced = rng.choice([n for n in alive if roles[n] == "villager"]) if scripted else None
+        # every mafioso picks a target on their own; the most picked one is attacked and a tie
+        # is broken at random
         picks = [choose(m, k, "kill", targets, forced) for m in mafia]
-        kills = night_actions[-len(mafia) :]
+        kills = night_actions[-len(mafia) :]  # the picks just made, one per mafioso
         tally = {n: picks.count(n) for n in picks}
         victim = rng.choice([n for n, c in tally.items() if c == max(tally.values())])
         saved = victim == protected
+        # each pick ends up "killed", "saved" by the doctor, or "outvoted" by the other mafiosos
         for a in kills:
             a.result = ("saved" if saved else "killed") if a.target == victim else "outvoted"
+        # the mafia see each other's picks, then everyone alive hears who died
         for m in mafia:
             memory[m].extend(
                 line("kill_own", target=a.target)
@@ -210,15 +270,22 @@ def play_game(
         return None if saved else victim
 
     def side_won() -> str | None:
+        """
+        Check whether the game is over.
+        :return: "town" when no mafia are left, "mafia" when the mafia are at least as many as
+            everyone else alive, otherwise None.
+        """
         mafia = sum(roles[n] == "mafioso" for n in alive)
         # at parity the mafia can no longer lose a vote
         return "town" if mafia == 0 else "mafia" if mafia >= len(alive) - mafia else None
 
+    # at the start a player knows only their own name and role (mafiosos also know each other)
     for n in names:
         team = [m for m in names if m != n and roles[m] == "mafioso"]
         memory[n] = start_memory(roles[n], n, team if roles[n] == "mafioso" else [])
     alive.extend(names)
     day1 = None
+    # night 1, day 1, night 2, day 2, ... until one side has won
     for k in itertools.count(1):
         victim = night(k)
         day1 = day1 or set(alive)
@@ -232,6 +299,7 @@ def play_game(
             reason = f"{arrested} arrested on day {k}"
             break
 
+    # everything that happened, in the shape that is saved as JSON
     return GameLog(
         game_id=game_id,
         source="engine",

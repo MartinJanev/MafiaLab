@@ -5,6 +5,12 @@ from pathlib import Path
 
 
 def repo_root(start: Path | None = None) -> Path:
+    """
+    Find the project folder (the one with pyproject.toml and configs/ in it), so the CLI works
+    from any subfolder. MAFIALAB_ROOT skips the search. If nothing is found, it falls back to
+    the folder this package was installed from.
+    :param start: Folder to search upward from; the current folder if not given.
+    """
     env = os.environ.get("MAFIALAB_ROOT")
     if env:
         return Path(env)

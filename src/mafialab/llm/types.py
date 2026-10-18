@@ -9,11 +9,13 @@ from pydantic import BaseModel, Field
 Role = Literal["system", "user", "assistant"]
 
 
+# one chat message: who says it (system, user or assistant) and the text
 class ChatMessage(BaseModel):
     role: Role
     content: str
 
 
+# token counts of a call; two of them can be added with +
 class Usage(BaseModel):
     input_tokens: int = 0
     output_tokens: int = 0
@@ -27,6 +29,7 @@ class Usage(BaseModel):
         )
 
 
+# what we send to a model: the chat messages plus optional sampling settings
 class LLMRequest(BaseModel):
     messages: list[ChatMessage]
     params: dict[str, Any] = Field(default_factory=dict)
@@ -42,6 +45,8 @@ class LLMRequest(BaseModel):
         return "\n\n".join(m.content for m in self.messages)
 
 
+# what comes back: the reply text plus who answered, tokens, cost, time taken, whether it came
+# from our cache, why it stopped, the provider's raw JSON and the reasoning text if any
 class LLMResponse(BaseModel):
     text: str
     provider: str
@@ -56,6 +61,11 @@ class LLMResponse(BaseModel):
 
 
 def cache_key(provider: str, model: str, request: LLMRequest) -> str:
+    """
+    The request's fingerprint for the cache: a SHA-256 hash of the provider, model, settings,
+    messages and sample index. The same request always gives the same key; the tags are left
+    out, so relabeling a call does not change it.
+    """
     payload = {
         "provider": provider,
         "model": model,

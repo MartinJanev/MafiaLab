@@ -9,10 +9,16 @@ from mafialab.llm.base import LLMClient, LLMError, RetryableLLMError
 from mafialab.llm.cost import Pricing
 from mafialab.llm.types import LLMRequest, LLMResponse, Usage
 
+# HTTP codes that mean "busy or briefly broken, try again later": timeouts, rate limits, server
+# errors
 RETRYABLE_STATUS = {408, 409, 425, 429, 500, 502, 503, 504, 529}
 
 
 def _raise_for_status(resp: httpx.Response) -> None:
+    """
+    Do nothing on success. Otherwise raise RetryableLLMError for codes worth retrying (with the
+    server's Retry-After wait, if it sent one) and LLMError for the rest.
+    """
     if resp.status_code < 400:
         return
     retry_after = resp.headers.get("retry-after")
@@ -26,6 +32,8 @@ def _raise_for_status(resp: httpx.Response) -> None:
     raise LLMError(msg)
 
 
+# shared code for the clients that call a provider's web API; each subclass only builds its
+# provider's request body and reads its reply
 class _HTTPClient(LLMClient):
     def __init__(
         self,
@@ -49,6 +57,10 @@ class _HTTPClient(LLMClient):
         return {**self.default_params, **request.params}
 
     def _post(self, url: str, json: dict[str, Any], headers: dict[str, str]) -> dict[str, Any]:
+        """
+        Send the request and return the JSON reply. A network error or timeout becomes
+        RetryableLLMError, so it is tried again.
+        """
         try:
             resp = self.http.post(url, json=json, headers=headers)
         except (httpx.TimeoutException, httpx.TransportError) as exc:
@@ -65,6 +77,9 @@ class _HTTPClient(LLMClient):
         finish: str | None,
         thinking: str | None = None,
     ):
+        """
+        Wrap a provider's reply in an LLMResponse, adding its cost and how long the call took.
+        """
         return LLMResponse(
             text=text,
             provider=self.provider,

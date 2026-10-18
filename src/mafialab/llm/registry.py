@@ -16,9 +16,13 @@ from mafialab.llm.managed import ManagedClient
 from mafialab.llm.providers import AnthropicClient, NVIDIAClient, OllamaClient, OpenAICompatClient
 from mafialab.llm.ratelimit import RateLimiter
 
+# which API a model is called through: openai_compat is OpenRouter or any OpenAI-style server,
+# nim is NVIDIA's API and fake is the test model
 ProviderName = Literal["openai_compat", "anthropic", "ollama", "nim", "fake"]
 
 
+# one entry of configs/models.yaml: the provider and model id behind an alias, plus its sampling
+# params, price, rate limit and, for the paper's models, the name the paper uses
 class ModelSpec(BaseModel):
     alias: str
     provider: ProviderName
@@ -50,6 +54,7 @@ def load_models(path: str | Path | None = None) -> ModelsConfig:
     return ModelsConfig(models=models)
 
 
+# where each provider's API lives, unless the model entry sets base_url
 DEFAULT_BASE_URLS = {
     "openai_compat": "https://openrouter.ai/api/v1",
     "anthropic": "https://api.anthropic.com",
@@ -59,6 +64,12 @@ DEFAULT_BASE_URLS = {
 
 
 def build_raw_client(spec: ModelSpec, **http_kwargs) -> LLMClient:
+    """
+    Make the bare client for one model entry, without cache, rate limit or retries. The API key
+    is read from the environment variable named in api_key_env.
+    :param spec: The model entry.
+    :param http_kwargs: Passed on to the client, e.g. timeout, or http with a mock client in tests.
+    """
     if spec.provider == "fake":
         return FakeLLM(cycle=True, default='"I have nothing to add."', model=spec.model)
     base_url = spec.base_url or DEFAULT_BASE_URLS[spec.provider]
@@ -89,6 +100,15 @@ def build_client(
     tracker: CostTracker | None = None,
     **http_kwargs,
 ) -> ManagedClient:
+    """
+    The usual way to get a model: look up its alias and return a client that is ready to use,
+    with cache, rate limit, retries and cost tracking.
+    :param alias: A name from configs/models.yaml, e.g. "ollama-llama3.1-8b".
+    :param config: The loaded models file; read from configs/models.yaml if not given.
+    :param cache: "default" uses data/cache/llm_cache.sqlite, None turns the cache off.
+    :param tracker: Where to record costs; None records nothing.
+    :param http_kwargs: Passed on to the client, see build_raw_client.
+    """
     config = config or load_models()
     spec = config.get(alias)
     if cache == "default":

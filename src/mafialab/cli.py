@@ -20,6 +20,11 @@ app.add_typer(models_app, name="models")
 
 
 def load_dotenv(env: Path) -> None:
+    """
+    Copy the KEY=value lines of a .env file into the environment. Variables that are already
+    set are kept, lines starting with # are skipped, and a missing file is ignored.
+    :param env: Path to the .env file.
+    """
     if not env.exists():
         return
     for line in env.read_text(encoding="utf-8").splitlines():
@@ -28,6 +33,7 @@ def load_dotenv(env: Path) -> None:
             os.environ.setdefault(key.strip(), value.strip().strip("\"'"))
 
 
+# runs before every command, so API keys in .env are always available
 @app.callback()
 def _load_env() -> None:
     from mafialab import paths
@@ -36,6 +42,11 @@ def _load_env() -> None:
 
 
 def _check_players(players: int) -> int:
+    """
+    Stop with a clear --players error unless the count is 4 to 16.
+    :param players: The requested number of players.
+    :return: The same number, if it is allowed.
+    """
     from mafialab.game.prompts import composition
 
     try:
@@ -79,6 +90,7 @@ def play(
     from mafialab.llm.registry import build_client, load_models
     from mafialab.tournament import has_doctor, log_path
 
+    # only games of 5 or more have a doctor, and then it needs a model
     _check_players(players)
     doctor = doctor if has_doctor(players) else None
     if has_doctor(players) and not doctor:
@@ -88,6 +100,7 @@ def play(
     out_dir = out_dir or paths.repo_root() / "data" / "games"
     path = log_path(out_dir, mafioso, detective, villager, seed, doctor=doctor, players=players)
     config = load_models()
+    # one client per role; every player with that role is played by it
     log = play_game(
         {role: build_client(alias, config=config) for role, alias in aliases.items()},
         seed,
@@ -97,6 +110,7 @@ def play(
         output_dir=path.with_suffix(""),
     )
 
+    # the transcript: roles, night actions, discussion, votes
     roles = {p.name: p.role for p in log.players}
     for p in log.players:
         typer.echo(f"{p.name:<8} {p.role:<10} {p.model}")
@@ -110,6 +124,7 @@ def play(
         fallback = " (random fallback)" if v.fallback else ""
         typer.echo(f"Vote day {v.day}: {v.voter} -> {v.target}{fallback}")
 
+    # summary: what happened to each player, then each day's vote counts
     fate = {
         a.target: f"killed night {a.night}"
         for a in log.night_actions

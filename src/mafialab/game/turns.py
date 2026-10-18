@@ -7,6 +7,7 @@ from typing import Any
 from mafialab.llm.types import LLMResponse
 
 
+# saves every raw model reply of one game as JSON files in <output_dir>/turns, numbered in order
 class TurnWriter:
     def __init__(self, output_dir: str | Path):
         self.output_dir = Path(output_dir)
@@ -15,6 +16,9 @@ class TurnWriter:
         self.count = 0
 
     def _sanitize_name(self, name: str) -> str:
+        """
+        Make a name safe for a file name, e.g. "Bob Smith" becomes "bob_smith".
+        """
         return name.replace(" ", "_").replace("/", "_").lower()
 
     def save_turn(
@@ -25,6 +29,16 @@ class TurnWriter:
         response: LLMResponse,
         metadata: dict[str, Any] | None = None,
     ) -> dict[str, str]:
+        """
+        Save one model reply as 07_vote_alice_response.json and so on, plus a _thinking file if
+        the model returned its reasoning and a _metadata file with the provider's raw reply.
+        :param day: The day or night number.
+        :param action_type: The turn's label, e.g. "discussion", "vote" or "kill".
+        :param actor: The player who replied.
+        :param response: The model's reply.
+        :param metadata: Extra fields to add to the _metadata file.
+        :return: The written file paths, relative to output_dir.
+        """
         actor_safe = self._sanitize_name(actor)
         self.count += 1
         base_name = f"{self.count:02d}_{action_type}_{actor_safe}"
@@ -47,6 +61,7 @@ class TurnWriter:
 
         result = {"response_file": str(response_file.relative_to(self.output_dir))}
 
+        # only models that return their reasoning have this
         if response.thinking:
             thinking_data = {
                 "day": day,
@@ -58,6 +73,7 @@ class TurnWriter:
             thinking_file.write_text(json.dumps(thinking_data, indent=2) + "\n")
             result["thinking_file"] = str(thinking_file.relative_to(self.output_dir))
 
+        # the provider's full raw JSON reply, plus any extra metadata
         if metadata or response.raw:
             metadata_data = {
                 "day": day,

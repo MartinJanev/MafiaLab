@@ -7,6 +7,8 @@ from mafialab.llm.ratelimit import RateLimiter, retry_with_backoff
 from mafialab.llm.types import LLMRequest, LLMResponse, cache_key
 
 
+# wraps a real client and adds the extras every model needs: cache, rate limit, retries and
+# cost tracking
 class ManagedClient(LLMClient):
     def __init__(
         self,
@@ -30,6 +32,11 @@ class ManagedClient(LLMClient):
         self._sleep = sleep
 
     def complete(self, request: LLMRequest) -> LLMResponse:
+        """
+        Answer from the cache if this exact request was made before. Otherwise wait for the rate
+        limiter, call the model (trying again on temporary errors), save the reply in the cache
+        and record its cost.
+        """
         key = cache_key(self.provider, self.model, request)
         if self.cache is not None:
             hit = self.cache.get(key)

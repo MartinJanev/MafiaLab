@@ -6,6 +6,8 @@ from mafialab.llm.base import LLMClient, LLMError
 from mafialab.llm.types import LLMRequest, LLMResponse, Usage, estimate_tokens
 
 
+# a pretend model for tests: it answers from a fixed list of replies (or a function) instead of
+# calling a real model, and can be told to fail its first few calls
 class FakeLLM(LLMClient):
     # script: replies returned in order, or a function request -> reply
     provider = "fake"
@@ -30,6 +32,10 @@ class FakeLLM(LLMClient):
         self.calls: list[LLMRequest] = []
 
     def _next_text(self, request: LLMRequest) -> str:
+        """
+        The next scripted reply. When the list runs out it starts over (cycle=True), returns
+        default, or raises LLMError.
+        """
         if callable(self._script):
             return self._script(request)
         items = list(self._script)
@@ -45,6 +51,11 @@ class FakeLLM(LLMClient):
         return text
 
     def complete(self, request: LLMRequest) -> LLMResponse:
+        """
+        Answer like a real model with the next scripted reply. Every request is kept in
+        self.calls so a test can check what was asked, the first fail_times calls raise instead,
+        and the token counts are rough estimates.
+        """
         self.calls.append(request)
         if self._fail_times > 0:
             self._fail_times -= 1

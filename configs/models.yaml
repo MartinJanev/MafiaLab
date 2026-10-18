@@ -44,6 +44,7 @@ models:
     provider: ollama
     model: gemma3:4b
     params: { max_tokens: 300, temperature: 0.8, options: { top_p: 0.9, top_k: 40 } }
+
   nim-deepseek-v4.1-flash:
     provider: nim
     model: deepseek-ai/deepseek-v4.1-flash

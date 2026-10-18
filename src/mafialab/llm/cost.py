@@ -16,6 +16,11 @@ class Pricing(BaseModel):
     cached_input_per_mtok: float | None = None
 
     def cost(self, usage: Usage) -> float:
+        """
+        What one call cost in USD. Prices are per million tokens; input tokens the provider had
+        cached use the cheaper cached price when the model has one.
+        :param usage: The call's token counts.
+        """
         cached = usage.cached_input_tokens
         cached_rate = (
             self.cached_input_per_mtok
@@ -41,6 +46,8 @@ class CallRecord(BaseModel):
     tags: dict[str, str] = {}
 
 
+# keeps one record per model call (tokens, cost, time, tags), and appends each one as a JSON
+# line to log_path if one is given
 class CostTracker:
     def __init__(self, log_path: str | Path | None = None):
         self.records: list[CallRecord] = []
@@ -50,6 +57,12 @@ class CostTracker:
             self.log_path.parent.mkdir(parents=True, exist_ok=True)
 
     def record(self, response: LLMResponse, tags: dict[str, str] | None = None) -> CallRecord:
+        """
+        Add one call to the records. A reply from our own cache costs nothing.
+        :param response: The model's reply.
+        :param tags: Labels such as game_id and player, so costs can be grouped later.
+        :return: The new record.
+        """
         rec = CallRecord(
             timestamp=time.time(),
             provider=response.provider,
@@ -68,6 +81,11 @@ class CostTracker:
         return rec
 
     def totals(self) -> dict[str, float]:
+        """
+        Add up all recorded calls. Calls answered from the cache are counted, but their tokens
+        and cost are not.
+        :return: calls, cached_calls, input_tokens, output_tokens and cost_usd.
+        """
         usage = sum((r.usage for r in self.records if not r.cached), Usage())
         return {
             "calls": len(self.records),
