@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections import Counter
+from collections import Counter, defaultdict
 from collections.abc import Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -146,7 +146,8 @@ def win_tables(
 def format_failures(
     out_dir: str | Path, models: list[str], backgrounds: list[str], players: int = 4
 ) -> dict[str, Counter]:
-    counts = {m: Counter() for m in models}
+    # backgrounds that are not tested models get a row too
+    counts = defaultdict(Counter, {m: Counter() for m in models})
     for lu in lineups(models, backgrounds, players):
         for log in _logs(out_dir, lu, players):
             model = {p.name: p.model for p in log.players}

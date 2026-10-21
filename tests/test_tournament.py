@@ -64,6 +64,13 @@ def test_tables_count_the_tested_side_and_format_failures(tmp_path):
     assert a["messages"] + b["messages"] == 3 * 6
 
 
+def test_format_failures_count_a_background_that_is_not_a_tested_model(tmp_path):
+    run(lineups(["a"], ["b"]), 1, tmp_path, config=FAKES, echo=lambda _: None)
+    failures = format_failures(tmp_path, ["a"], ["b"])
+    # 3 games, 3 voters each after the night kill, and a holds one living seat in every game
+    assert failures["a"]["votes"] == 3 and failures["b"]["votes"] == 6
+
+
 def test_larger_games_add_protect_and_their_own_folder(tmp_path):
     schedule = lineups(["a"], ["b"], players=5)
     assert schedule == [

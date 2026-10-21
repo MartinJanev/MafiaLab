@@ -37,7 +37,9 @@ class ManagedClient(LLMClient):
         limiter, call the model (trying again on temporary errors), save the reply in the cache
         and record its cost.
         """
-        key = cache_key(self.provider, self.model, request)
+        # key on the settings the provider really sends, so editing models.yaml is a cache miss
+        params = {**getattr(self.inner, "default_params", {}), **request.params}
+        key = cache_key(self.provider, self.model, request.model_copy(update={"params": params}))
         if self.cache is not None:
             hit = self.cache.get(key)
             if hit is not None:

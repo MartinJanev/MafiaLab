@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from mafialab import paths
@@ -147,3 +149,18 @@ def test_night_action_and_memory_lines():
     assert vote_line("Bob", "Eve", "Bob") == "You voted for Eve."
     assert vote_line("Bob", "Eve", "Ann") == "Bob voted for Eve."
     assert len(NAMES) == 16 and NAMES[:4] == ("Alice", "Bob", "Charlie", "Diana")
+
+
+def test_turn_writer_keeps_the_reasoning_and_raw_reply(tmp_path):
+    from mafialab.game.turns import TurnWriter
+    from mafialab.llm import LLMResponse
+
+    writer = TurnWriter(tmp_path)
+    plain = LLMResponse(text="Bob", provider="fake", model="m")
+    rich = plain.model_copy(update={"thinking": "Bob lied.", "raw": {"id": 1}})
+    assert writer.save_turn(1, "vote", "Ann Lee", plain) == {
+        "response_file": "turns/01_vote_ann_lee_response.json"
+    }
+    files = writer.save_turn(1, "vote", "Bob", rich)
+    assert json.loads((tmp_path / files["thinking_file"]).read_text())["thinking"] == "Bob lied."
+    assert json.loads((tmp_path / files["metadata_file"]).read_text())["raw_response"] == {"id": 1}

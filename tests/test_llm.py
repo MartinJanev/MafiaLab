@@ -79,6 +79,29 @@ def test_cache_survives_reopen(tmp_path):
     )
 
 
+def test_cache_misses_when_the_models_settings_change(tmp_path):
+    calls = []
+
+    def handler(request):
+        calls.append(json.loads(request.content)["options"])
+        return httpx.Response(200, json={"message": {"content": "ok"}, "done_reason": "stop"})
+
+    def client(temperature):
+        inner = OllamaClient(
+            "m",
+            base_url="http://ollama.test",
+            default_params={"temperature": temperature},
+            http=_mock(handler),
+        )
+        return ManagedClient(inner, cache=DiskCache(tmp_path / "c.sqlite"))
+
+    req = LLMRequest.from_prompt("q")
+    client(0.8).complete(req)
+    assert client(0.8).complete(req).cached
+    assert not client(0.2).complete(req).cached
+    assert calls == [{"temperature": 0.8}, {"temperature": 0.2}]
+
+
 def test_retry_with_backoff_then_success():
     sleeps = []
     fake = FakeLLM(["ok"], fail_times=2, failure=RetryableLLMError("429"))
