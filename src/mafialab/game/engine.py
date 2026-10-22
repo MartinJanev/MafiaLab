@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import itertools
 import random
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
 from mafialab import __version__
@@ -24,6 +24,7 @@ from mafialab.game.prompts import (
     discussion_action,
     game_prompt,
     line,
+    mafia_chat_action,
     message_line,
     night_action,
     start_memory,
@@ -35,11 +36,11 @@ from mafialab.llm import LLMClient, LLMRequest
 
 
 def play_game(
-    clients: Mapping[str, LLMClient],
+    clients: Mapping[str, LLMClient | Sequence[LLMClient]],
     seed: int,
     *,
     n_players: int = 4,
-    aliases: Mapping[str, str] | None = None,
+    aliases: Mapping[str, str | Sequence[str]] | None = None,
     game_id: str | None = None,
     discussion_rounds: int = DISCUSSION_ROUNDS,
     progress: Callable[[str], None] | None = None,
@@ -48,12 +49,13 @@ def play_game(
     """
     Play one whole game: nights and days take turns until the town or the mafia has won.
     :param clients: The model that plays each role, e.g. {"mafioso": ..., "detective": ...,
-        "villager": ...}. Every player with the same role is played by the same model.
+        "villager": ...}. Every player with the same role is played by the same model, unless
+        the role gets a list: then its players, in seat order, take the models in turn.
     :param seed: Decides who gets which role, the speaking order and the tie-breaks. With the
         cache on, the same seed and models replay the same game.
     :param n_players: 4 to 16. Games of 5 or more also have a doctor.
-    :param aliases: The model name written in the log for each role. Defaults to the client's
-        model id.
+    :param aliases: The model name written in the log for each role, shaped like clients.
+        Defaults to the client's model id.
     :param game_id: The game's name in the log and cost tags. Defaults to "mafia-<n>:seed-<seed>".
     :param discussion_rounds: How many times each living player speaks every day.
     :param progress: Called with one line of text after every model reply, to show live progress.
@@ -65,14 +67,33 @@ def play_game(
     names = NAMES[:n_players]
     seats = [r for r, c in composition(n_players).items() for _ in range(c)]
     game_id = game_id or f"mafia-{n_players}:seed-{seed}"
-    aliases = aliases or {role: client.model for role, client in clients.items()}
     turn_writer = TurnWriter(output_dir) if output_dir else None
 
     roles = dict(zip(names, rng.sample(seats, k=len(seats)), strict=True))
 
+    def per_seat(by_role: Mapping) -> dict:
+        """
+        Give every player the model of their role. A role with a list of models hands them out
+        to its players in seat order and starts over when the list runs out.
+        :param by_role: One model, or a list of models, per role.
+        :return: The model of each player, by name.
+        """
+        pools = {r: v if isinstance(v, (list, tuple)) else [v] for r, v in by_role.items()}
+        taken = dict.fromkeys(pools, 0)
+        out = {}
+        for n in names:
+            pool = pools[roles[n]]
+            out[n] = pool[taken[roles[n]] % len(pool)]
+            taken[roles[n]] += 1
+        return out
+
+    client_of = per_seat(clients)
+    alias_of = per_seat(aliases) if aliases else {n: c.model for n, c in client_of.items()}
+
     memory: dict[str, list[str]] = {}
     alive: list[str] = []
     messages: list[Message] = []
+    night_messages: list[Message] = []
     votes: list[Vote] = []
     day_results: list[DayResult] = []
     night_actions: list[NightAction] = []
@@ -98,11 +119,12 @@ def play_game(
                 "day": str(day),
             },
         )
-        response = clients[roles[name]].complete(request)
+        response = client_of[name].complete(request)
         if progress:
-            who = f"{name} ({roles[name]}, {aliases[roles[name]]})"
+            who = f"{name} ({roles[name]}, {alias_of[name]})"
             tag = " cached" if response.cached else ""
-            progress(f"{who} {kind}: {response.latency_s:.2f}s{tag}")
+            said = " / ".join(x.strip() for x in response.text.strip().splitlines() if x.strip())
+            progress(f"{who} {kind} ({response.latency_s:.2f}s{tag}): {said}")
         turn = {"reply": response.text}
         if turn_writer:
             turn["files"] = turn_writer.save_turn(
@@ -175,6 +197,8 @@ def play_game(
             )
         )
         alive.remove(arrested)
+        if progress:
+            progress(f"Day {day}: {arrested} ({roles[arrested]}) arrested, votes {tally}")
         return arrested
 
     def choose(
@@ -241,6 +265,27 @@ def play_game(
             memory[doctor].append(line("protected", target=protected))
         # the mafia can attack anyone who is not mafia
         targets = [n for n in alive if roles[n] != "mafioso"]
+        # two or more mafiosos first talk in private: one message each, in seat order
+        if len(mafia) > 1:
+            for m in mafia:
+                memory[m].append(line("mafia_chat"))
+            for position, speaker in enumerate(mafia, start=1):
+                reply, turn = ask(speaker, mafia_chat_action(k, targets), "mafia_chat", k)
+                text = parse_discussion(reply)
+                for m in mafia:
+                    memory[m].append(message_line(speaker, m, text))
+                night_messages.append(
+                    Message(
+                        day=k,
+                        round=1,
+                        position=position,
+                        speaker=speaker,
+                        text=text or "",
+                        silent=text is None,
+                        parse_ok=text is not None,
+                        turn=turn,
+                    )
+                )
         # on the scripted night a random villager is the target instead of asking the mafia
         forced = rng.choice([n for n in alive if roles[n] == "villager"]) if scripted else None
         # every mafioso picks a target on their own; the most picked one is attacked and a tie
@@ -265,6 +310,9 @@ def play_game(
                 memory[m].append(line("mafia_attacks", target=victim))
         if not saved:
             alive.remove(victim)
+        if progress:
+            fate = "saved by the doctor" if saved else f"({roles[victim]}) killed"
+            progress(f"Night {k}: {victim} {fate}")
         for n in alive:
             memory[n].append(line("nobody_dead") if saved else line("found_dead", name=victim))
         return None if saved else victim
@@ -311,11 +359,12 @@ def play_game(
         ),
         seeds={"game": seed},
         players=[
-            Player(name=n, role=roles[n], model=aliases[roles[n]], alive_at_start_of_day=n in day1)
+            Player(name=n, role=roles[n], model=alias_of[n], alive_at_start_of_day=n in day1)
             for n in names
         ],
         night_actions=night_actions,
         messages=messages,
+        night_messages=night_messages,
         votes=votes,
         day_results=day_results,
         outcome=Outcome(

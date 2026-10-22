@@ -130,6 +130,16 @@ def night_action(night: int, action: str, candidates: list[str]) -> str:
     return text.replace("[action]", action).replace("[candidates]", ", ".join(candidates))
 
 
+def mafia_chat_action(night: int, candidates: list[str]) -> str:
+    """
+    The instruction at the end of the prompt for a mafioso's private night message.
+    :param night: The night number.
+    :param candidates: Who the mafia may kill tonight.
+    """
+    text = template("mafia/action_mafia_chat").replace("[round_num]", str(night))
+    return text.replace("[candidates]", ", ".join(candidates))
+
+
 def start_memory(role: str, name: str, fellow_mafiosos: list[str]) -> list[str]:
     """
     What a player knows when the game starts: their name and role and, for a mafioso, who the

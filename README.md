@@ -43,7 +43,8 @@ This prints the transcript and saves the log to `data/games/players-4/`. Replies
 
 `--players N` (4 to 16, default 4) sets the game size. From 5 players the models choose the night
 actions themselves, and a doctor joins the town and protects one player each night, so these
-games also need `--doctor`.
+games also need `--doctor`. From 8 players there are two or more mafiosos; each night they first
+send one private message each, which only the other mafiosos see, and then pick their targets.
 
 | Players | Mafiosos | Doctor | Detective | Villagers |
 |---------|----------|--------|-----------|-----------|
@@ -55,6 +56,16 @@ games also need `--doctor`.
 ```bash
 mafialab play --players 6 --mafioso ollama-qwen2.5-7b --detective ollama-qwen2.5-7b \
               --villager ollama-qwen2.5-7b --doctor ollama-qwen2.5-7b --seed 1
+```
+
+Several models can share a role: give a comma list, and the players of that role take the models
+in seat order (starting over if there are more seats than models). A list longer than the role's
+seats is an error.
+
+```bash
+mafialab play --players 8 --mafioso ollama-gemma3-12b,ollama-qwen2.5-3b \
+              --detective ollama-gemma3-12b --doctor ollama-gemma3-12b \
+              --villager ollama-gemma3-12b,ollama-mistral-7b --seed 4
 ```
 
 Logs go to `data/games/players-N/`. With players voting at random, a 12-player game takes about
@@ -74,6 +85,8 @@ mafialab summary
 
 Games that already have a log are skipped, so an interrupted run picks up where it stopped.
 `--workers` above 1 only helps if Ollama serves requests in parallel (`OLLAMA_NUM_PARALLEL`).
+`--live` prints every model reply as it arrives (to stderr, each line tagged with its lineup and
+seed), so `mafialab tournament --live 2> live.log` and `tail -f live.log` follow a long run.
 `summary` prints the win counts per role and background, and how often each model's replies could
 not be parsed.
 

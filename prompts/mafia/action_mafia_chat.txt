@@ -1,0 +1,6 @@
+#NIGHT [round_num] MAFIA CHAT:
+Only your fellow mafiosos will see this message. Agree on whom to kill
+from: [candidates].
+Your response must start with your message in double
+quotation marks, followed by optional reasoning:
+[/INST]

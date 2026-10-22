@@ -73,11 +73,14 @@ def models_list(models_file: Path | None = typer.Option(None, "--models")) -> No
         typer.echo(f"{alias:<28} {spec.provider:<14} {spec.model:<36} {price}")
 
 
+SHARED = " A comma list, e.g. a,b, gives the seats to several models in turn."
+
+
 @app.command()
 def play(
-    mafioso: str = typer.Option(..., help="Model alias for the mafioso."),
+    mafioso: str = typer.Option(..., help="Model alias for the mafiosos." + SHARED),
     detective: str = typer.Option(..., help="Model alias for the detective."),
-    villager: str = typer.Option(..., help="Model alias for the villagers."),
+    villager: str = typer.Option(..., help="Model alias for the villagers." + SHARED),
     doctor: str | None = typer.Option(None, help="Model alias for the doctor (5 or more players)."),
     players: int = typer.Option(4, help="Players per game, 4 to 16."),
     seed: int = typer.Option(0, help="Game seed."),
@@ -87,6 +90,7 @@ def play(
     from mafialab import paths
     from mafialab.game.engine import play_game
     from mafialab.game.log import save_game
+    from mafialab.game.prompts import composition
     from mafialab.llm.registry import build_client, load_models
     from mafialab.tournament import has_doctor, log_path
 
@@ -95,14 +99,30 @@ def play(
     doctor = doctor if has_doctor(players) else None
     if has_doctor(players) and not doctor:
         raise typer.BadParameter("needed for 5 or more players", param_hint="--doctor")
-    aliases = {"mafioso": mafioso, "detective": detective, "villager": villager}
-    aliases |= {"doctor": doctor} if doctor else {}
+    given = {"mafioso": mafioso, "detective": detective, "villager": villager}
+    given |= {"doctor": doctor} if doctor else {}
+    # "a,b" shares a role between models, but never more models than the role has seats
+    aliases = {role: [a.strip() for a in value.split(",")] for role, value in given.items()}
+    for role, models in aliases.items():
+        if len(models) > (seats := composition(players)[role]):
+            hint = f"{seats} {role} seat(s) with {players} players"
+            raise typer.BadParameter(f"{len(models)} models for {hint}", param_hint=f"--{role}")
+    folder = {role: "+".join(models) for role, models in aliases.items()}
     out_dir = out_dir or paths.repo_root() / "data" / "games"
-    path = log_path(out_dir, mafioso, detective, villager, seed, doctor=doctor, players=players)
+    path = log_path(
+        out_dir,
+        folder["mafioso"],
+        folder["detective"],
+        folder["villager"],
+        seed,
+        doctor=folder.get("doctor"),
+        players=players,
+    )
     config = load_models()
-    # one client per role; every player with that role is played by it
+    clients = {a: build_client(a, config=config) for models in aliases.values() for a in models}
+    # the players of a role take its models in seat order
     log = play_game(
-        {role: build_client(alias, config=config) for role, alias in aliases.items()},
+        {role: [clients[a] for a in models] for role, models in aliases.items()},
         seed,
         n_players=players,
         aliases=aliases,
@@ -117,6 +137,9 @@ def play(
     for a in log.night_actions:
         result = f" [{a.result}]" if a.result else ""
         typer.echo(f"Night {a.night}: {a.actor} ({a.action}) -> {a.target}{result}")
+    for m in log.night_messages:
+        said = "[remained silent]" if m.silent else m.text
+        typer.echo(f"[night {m.day} mafia chat] {m.speaker}: {said}")
     for m in log.messages:
         said = "[remained silent]" if m.silent else m.text
         typer.echo(f"[day {m.day} round {m.round}] {m.speaker} ({roles[m.speaker]}): {said}")
@@ -158,6 +181,7 @@ def tournament(
     out_dir: Path | None = typer.Option(
         None, help="Where to write the logs (default: data/games)."
     ),
+    live: bool = typer.Option(False, help="Print every model reply as it arrives."),
 ) -> None:
     """Play every lineup of the background design, skipping games that are already saved."""
     from mafialab import paths
@@ -173,6 +197,7 @@ def tournament(
         players=players,
         workers=workers,
         echo=typer.echo,
+        progress=(lambda line: typer.echo(line, err=True)) if live else None,
     )
     typer.echo(f"Played {played} games over {len(schedule)} lineups.")
 

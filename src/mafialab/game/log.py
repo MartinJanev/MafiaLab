@@ -82,7 +82,7 @@ class Outcome(_Strict):
 
 # a whole game, exactly as saved to and loaded from JSON
 class GameLog(_Strict):
-    schema_version: str = "1.1"
+    schema_version: str = "1.2"
     game_id: str
     source: str
     config: GameConfig
@@ -90,6 +90,7 @@ class GameLog(_Strict):
     players: list[Player]
     night_actions: list[NightAction]
     messages: list[Message]
+    night_messages: list[Message] = []  # the mafia's private chat; day is the night number
     votes: list[Vote]
     day_results: list[DayResult]
     outcome: Outcome

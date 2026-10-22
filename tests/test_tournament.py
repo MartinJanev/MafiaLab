@@ -33,7 +33,10 @@ def test_run_saves_every_game_and_resumes(tmp_path):
     assert len(list(tmp_path.glob("players-4/M_*/seed-*.json"))) == 12
     assert lines[0].startswith("[1/12] players-4/M_a__D_b__V_b seed 1: ")
     assert run(schedule, 3, tmp_path, config=FAKES) == 0
-    assert run(schedule, 4, tmp_path, config=FAKES) == 4
+    live = []
+    assert run(schedule, 4, tmp_path, config=FAKES, echo=lambda _: None, progress=live.append) == 4
+    assert live[0].startswith("players-4/M_a__D_b__V_b seed 4 | ")
+    assert run(schedule, 4, tmp_path, config=FAKES) == 0
 
 
 def test_parallel_run_gives_the_same_logs(tmp_path):

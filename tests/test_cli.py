@@ -106,6 +106,14 @@ def test_play_a_larger_game(tmp_path, monkeypatch):
     assert len(log.players) == 6 and "Winner:" in result.output
     assert "Day 1 votes:" in result.output and "survived" in result.output
     assert runner.invoke(app, [*args, "--players", "6", *out]).exit_code != 0
+    shared = ["--villager", "fake,other", "--players", "6", "--doctor", "fake", *out]
+    assert runner.invoke(app, [*args, *shared]).exit_code == 0
+    log = load_game(
+        tmp_path / "players-6" / "M_fake__Doc_fake__D_fake__V_fake+other" / "seed-0000.json"
+    )
+    assert [p.model for p in log.players if p.role == "villager"] == ["fake", "other", "fake"]
+    too_many = ["--mafioso", "fake,other", "--players", "6", "--doctor", "fake", *out]
+    assert runner.invoke(app, [*args, *too_many]).exit_code != 0
     assert runner.invoke(app, [*args, "--players", "17", "--doctor", "x", *out]).exit_code != 0
 
 

@@ -92,6 +92,7 @@ def run(
     workers: int = 1,
     config: ModelsConfig | None = None,
     echo: Callable[[str], None] = print,
+    progress: Callable[[str], None] | None = None,
 ) -> int:
     def path(lu: Lineup, seed: int) -> Path:
         return log_path(out_dir, *lu[:3], seed, doctor=lu[3], players=players)
@@ -110,6 +111,9 @@ def run(
             seed,
             n_players=players,
             aliases=aliases,
+            progress=(lambda line: progress(f"{_dir('', job[0], players)} seed {seed} | {line}"))
+            if progress
+            else None,
         )
         save_game(log, path(job[0], seed))
         return log

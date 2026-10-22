@@ -42,8 +42,11 @@ def roles_for(seed):
 def test_progress_reports_every_request():
     lines = []
     play_game(scripted(lambda name, c: c[0])[1], seed=1, progress=lines.append)
-    assert len(lines) == 9
-    assert all(re.search(r"\) (discussion|vote): \d+\.\d+s$", line) for line in lines)
+    replies = [line for line in lines if not line.startswith(("Day", "Night"))]
+    assert len(replies) == 9
+    assert all(re.search(r"\) (discussion|vote) \(\d+\.\d+s\): \S", line) for line in replies)
+    assert any(re.match(r"Day 1: \w+ \(\w+\) arrested", line) for line in lines)
+    assert any(re.match(r"Night 1: \w+ \(villager\) killed", line) for line in lines)
 
 
 def test_same_seed_same_log():
@@ -111,7 +114,8 @@ def test_engine_log_round_trips_and_matches_the_paper_format(tmp_path):
     log = play_game(scripted(lambda name, c: c[0])[1], seed=2, aliases=dict.fromkeys(ROLES, "x"))
     assert load_game(save_game(log, tmp_path / "game.json")) == log
     paper = json.loads(TRANSCRIPTS[0].read_text())
-    assert log.model_dump().keys() == paper.keys()
+    # the paper format plus the mafia's night chat, which the 4-player paper game never has
+    assert log.model_dump().keys() - {"night_messages"} == paper.keys()
     assert log.messages[0].model_dump().keys() == paper["messages"][0].keys()
     assert {p.model for p in log.players} == {"x"}
 
@@ -174,7 +178,7 @@ def _four_player_games():
 
 
 SAVED_SEED = 1  # the doctor guards the first kill target
-FOUR_GOLDEN = "7d8ccb1f1e71af184ea544bbbaf92876e5077c71b9ee7b8a997f1c853cb2fa0c"
+FOUR_GOLDEN = "ec3910e51341daa705101257afe607b09ecdee5f0211e5e858c0833cae4f512f"
 
 
 def test_four_player_games_are_unchanged():
@@ -303,8 +307,44 @@ def _larger_games():
     return games
 
 
-LARGER_GOLDEN = "1142aeadeb01edc41954808bc88031e65384cd596e9b631e2abe59b0f36745f4"
+LARGER_GOLDEN = "3a248baa18036f32f82bf5e6d16de600c889ee70ba30a132e80b38bc971c5d4c"
 
 
 def test_larger_games_are_unchanged():
     assert _digest(_larger_games()) == LARGER_GOLDEN
+
+
+def test_mafiosos_talk_in_private_before_the_kill():
+    base = chooser(lambda name, kind, c: c[0])[0]
+
+    def respond(request):
+        if "MAFIA CHAT:" in request.prompt_text():
+            return f'"secret from {request.tags["player"]}" \n reasoning'
+        return base.complete(request).text
+
+    mafia_llm, town_llm = FakeLLM(respond), FakeLLM(respond)
+    clients = dict.fromkeys(("doctor", "detective", "villager"), town_llm)
+    log = play_game(clients | {"mafioso": mafia_llm}, seed=1, n_players=8)
+    mafia = [p.name for p in log.players if p.role == "mafioso"]
+    chat = [(m.day, m.speaker, m.text) for m in log.night_messages if m.day == 1]
+    assert chat == [(1, m, f"secret from {m}") for m in mafia]
+    assert not any("secret from" in r.prompt_text() for r in town_llm.calls)
+    first = {"action": "kill", "day": "1", "player": mafia[0]}
+    kill = next(r.prompt_text() for r in mafia_llm.calls if r.tags == r.tags | first)
+    assert (
+        f'You: "secret from {mafia[0]}"' in kill and f'{mafia[1]}: "secret from {mafia[1]}"' in kill
+    )
+    # one mafioso has nobody to talk to
+    assert (
+        play_game(chooser(lambda name, kind, c: c[0])[1], seed=1, n_players=7).night_messages == []
+    )
+
+
+def test_a_role_can_be_shared_by_several_models():
+    a, b, other = (FakeLLM(default='"Hi."', model=m) for m in ("a", "b", "other"))
+    clients = dict.fromkeys(("mafioso", "doctor", "detective"), other) | {"villager": [a, b]}
+    log = play_game(clients, seed=1, n_players=8)
+    villagers = [p for p in log.players if p.role == "villager"]
+    assert [p.model for p in villagers] == ["a", "b", "a", "b"]
+    assert {r.tags["player"] for r in a.calls} <= {p.name for p in villagers[::2]}
+    assert {r.tags["player"] for r in b.calls} <= {p.name for p in villagers[1::2]}
