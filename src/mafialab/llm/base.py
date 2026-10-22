@@ -27,5 +27,14 @@ class LLMClient(ABC):
     @abstractmethod
     def complete(self, request: LLMRequest) -> LLMResponse: ...
 
+    def end_game(self, game_id: str, completed: bool) -> None:
+        """
+        Called when a game stops. A client with a cache saves that game's replies only now, and
+        only if the game finished; a client without one has nothing to do.
+        :param game_id: The game_id tag of the game's requests.
+        :param completed: False when the game crashed or was interrupted.
+        """
+        return None
+
     def __call__(self, prompt: str, **kwargs) -> str:
         return self.complete(LLMRequest.from_prompt(prompt, **kwargs)).text

@@ -11,7 +11,7 @@ import pytest
 from mafialab import paths
 from mafialab.game.engine import play_game
 from mafialab.game.log import load_game, save_game
-from mafialab.llm import DiskCache, FakeLLM, ManagedClient
+from mafialab.llm import DiskCache, FakeLLM, LLMError, ManagedClient
 
 ROLES = ("mafioso", "detective", "villager")
 TRANSCRIPTS = sorted((paths.repo_root() / "paper" / "transcripts").glob("*.json"))
@@ -139,6 +139,17 @@ def test_cached_seed_replays_a_nondeterministic_model(tmp_path):
     first = game(noisy)
     replay = game(FakeLLM(fail_times=99))  # any uncached request would raise
     assert replay == first
+
+
+def test_a_halted_game_leaves_nothing_in_the_cache(tmp_path):
+    cache = DiskCache(tmp_path / "cache.sqlite")
+    halting = ManagedClient(FakeLLM(['"Hi."'] * 3, model="m"), cache=cache)
+    with pytest.raises(LLMError):
+        play_game(dict.fromkeys(ROLES, halting), seed=4)
+    assert cache._conn.execute("SELECT COUNT(*) FROM responses").fetchone() == (0,)
+    finishing = ManagedClient(FakeLLM(default='"Hi."', model="m"), cache=cache)
+    play_game(dict.fromkeys(ROLES, finishing), seed=4)
+    assert cache._conn.execute("SELECT COUNT(*) FROM responses").fetchone() == (9,)
 
 
 def test_four_player_first_night_is_scripted():

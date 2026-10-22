@@ -58,7 +58,7 @@ def test_managed_client_caches_and_tracks(tmp_path):
     fake = FakeLLM(["first", "second"])
     tracker = CostTracker(tmp_path / "costs.jsonl")
     client = ManagedClient(fake, cache=DiskCache(tmp_path / "c.sqlite"), tracker=tracker)
-    req = LLMRequest.from_prompt("hello", tags={"game_id": "g1"})
+    req = LLMRequest.from_prompt("hello", tags={"player": "Alice"})
     assert client.complete(req).text == "first"
     again = client.complete(req)
     assert again.text == "first" and again.cached
@@ -67,6 +67,23 @@ def test_managed_client_caches_and_tracks(tmp_path):
     totals = tracker.totals()
     assert totals["calls"] == 3 and totals["cached_calls"] == 1
     assert len((tmp_path / "costs.jsonl").read_text().splitlines()) == 3
+
+
+def test_a_games_replies_are_cached_only_when_it_finishes(tmp_path):
+    cache = DiskCache(tmp_path / "c.sqlite")
+    client = ManagedClient(FakeLLM(["a", "b", "c"]), cache=cache)
+    asked = [
+        LLMRequest.from_prompt(q, tags={"game_id": g}) for q, g in (("q1", "g1"), ("q2", "g2"))
+    ]
+    for request in asked:
+        client.complete(request)
+    assert not client.complete(asked[0]).cached  # held back, not in the cache yet
+    client.end_game("g1", completed=True)
+    client.end_game("g2", completed=False)
+    reopened = ManagedClient(FakeLLM([]), cache=DiskCache(tmp_path / "c.sqlite"))
+    assert reopened.complete(asked[0]).cached
+    with pytest.raises(LLMError):
+        reopened.complete(asked[1])  # the halted game's reply was dropped
 
 
 def test_cache_survives_reopen(tmp_path):

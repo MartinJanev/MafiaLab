@@ -117,6 +117,20 @@ def test_play_a_larger_game(tmp_path, monkeypatch):
     assert runner.invoke(app, [*args, "--players", "17", "--doctor", "x", *out]).exit_code != 0
 
 
+def test_a_halted_play_leaves_no_reply_files(tmp_path, monkeypatch):
+    from mafialab.llm import FakeLLM
+
+    monkeypatch.setattr(
+        "mafialab.llm.registry.build_client", lambda alias, config: FakeLLM(['"Hi."'] * 3)
+    )
+    args = ["play", "--mafioso", "fake", "--detective", "fake", "--villager", "fake"]
+    stale = tmp_path / "players-4" / "M_fake__D_fake__V_fake" / "seed-0000" / "turns"
+    stale.mkdir(parents=True)
+    assert runner.invoke(app, [*args, "--out-dir", str(tmp_path)]).exit_code != 0
+    assert not stale.parent.exists()
+    assert not list(tmp_path.rglob("*.json"))
+
+
 @pytest.mark.parametrize("command", ["tournament", "summary"])
 @pytest.mark.parametrize("players", ["0", "3", "17"])
 def test_tournament_commands_reject_bad_player_counts(tmp_path, command, players):

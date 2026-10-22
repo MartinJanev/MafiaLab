@@ -87,6 +87,8 @@ def play(
     out_dir: Path | None = typer.Option(None, help="Where to write the log (default: data/games)."),
 ) -> None:
     """Play one game, print the transcript and save the JSON log."""
+    import shutil
+
     from mafialab import paths
     from mafialab.game.engine import play_game
     from mafialab.game.log import save_game
@@ -120,15 +122,22 @@ def play(
     )
     config = load_models()
     clients = {a: build_client(a, config=config) for models in aliases.values() for a in models}
-    # the players of a role take its models in seat order
-    log = play_game(
-        {role: [clients[a] for a in models] for role, models in aliases.items()},
-        seed,
-        n_players=players,
-        aliases=aliases,
-        progress=lambda line: typer.echo(line, err=True),
-        output_dir=path.with_suffix(""),
-    )
+    # the reply files of this seed; a halted run must not leave a half game behind
+    run_dir = path.with_suffix("")
+    shutil.rmtree(run_dir, ignore_errors=True)
+    try:
+        # the players of a role take its models in seat order
+        log = play_game(
+            {role: [clients[a] for a in models] for role, models in aliases.items()},
+            seed,
+            n_players=players,
+            aliases=aliases,
+            progress=lambda line: typer.echo(line, err=True),
+            output_dir=run_dir,
+        )
+    except BaseException:
+        shutil.rmtree(run_dir, ignore_errors=True)
+        raise
 
     # the transcript: roles, night actions, discussion, votes
     roles = {p.name: p.role for p in log.players}

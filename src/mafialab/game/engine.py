@@ -333,19 +333,26 @@ def play_game(
         memory[n] = start_memory(roles[n], n, team if roles[n] == "mafioso" else [])
     alive.extend(names)
     day1 = None
-    # night 1, day 1, night 2, day 2, ... until one side has won
-    for k in itertools.count(1):
-        victim = night(k)
-        day1 = day1 or set(alive)
-        if winner := side_won():
-            reason = f"{victim} killed on night {k}"
-            break
-        for n in alive:
-            memory[n].append(line("day", day=k))
-        arrested = run_day(k)
-        if winner := side_won():
-            reason = f"{arrested} arrested on day {k}"
-            break
+    completed = False
+    try:
+        # night 1, day 1, night 2, day 2, ... until one side has won
+        for k in itertools.count(1):
+            victim = night(k)
+            day1 = day1 or set(alive)
+            if winner := side_won():
+                reason = f"{victim} killed on night {k}"
+                break
+            for n in alive:
+                memory[n].append(line("day", day=k))
+            arrested = run_day(k)
+            if winner := side_won():
+                reason = f"{arrested} arrested on day {k}"
+                break
+        completed = True
+    finally:
+        # only a finished game's replies go into the cache (Ctrl-C or a crash keeps none)
+        for client in set(client_of.values()):
+            client.end_game(game_id, completed)
 
     # everything that happened, in the shape that is saved as JSON
     return GameLog(

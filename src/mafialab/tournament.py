@@ -111,6 +111,8 @@ def run(
             seed,
             n_players=players,
             aliases=aliases,
+            # unique per lineup, so games played at the same time never share cached replies
+            game_id=path(job[0], seed).relative_to(out_dir).with_suffix("").as_posix(),
             progress=(lambda line: progress(f"{_dir('', job[0], players)} seed {seed} | {line}"))
             if progress
             else None,

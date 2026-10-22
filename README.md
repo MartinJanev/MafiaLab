@@ -37,7 +37,9 @@ mafialab play --mafioso ollama-llama3.1-8b --detective ollama-mistral-7b \
 ```
 
 This prints the transcript and saves the log to `data/games/players-4/`. Replies are cached in
-`data/cache/`, so running the same seed again replays the same game.
+`data/cache/`, so running the same seed again replays the same game. Only finished games are
+cached: if a game is stopped (Ctrl-C) or crashes, its replies are dropped and its `turns/` folder
+is deleted, so the next run of that seed starts fresh.
 
 ## Larger games
 
