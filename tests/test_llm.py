@@ -77,13 +77,25 @@ def test_a_games_replies_are_cached_only_when_it_finishes(tmp_path):
     ]
     for request in asked:
         client.complete(request)
-    assert not client.complete(asked[0]).cached  # held back, not in the cache yet
+    assert cache._conn.execute("SELECT COUNT(*) FROM responses").fetchone() == (0,)  # held back
+    assert client.complete(asked[0]).text == "a"  # asked again: the held reply, not "c"
     client.end_game("g1", completed=True)
     client.end_game("g2", completed=False)
     reopened = ManagedClient(FakeLLM([]), cache=DiskCache(tmp_path / "c.sqlite"))
     assert reopened.complete(asked[0]).cached
     with pytest.raises(LLMError):
         reopened.complete(asked[1])  # the halted game's reply was dropped
+
+
+def test_games_in_flight_share_a_reply_to_the_same_request(tmp_path):
+    client = ManagedClient(FakeLLM(["from-a", "from-b"]), cache=DiskCache(tmp_path / "c.sqlite"))
+    a, b = (LLMRequest.from_prompt("q", tags={"game_id": g}) for g in ("a", "b"))
+    assert client.complete(a).text == "from-a"
+    assert client.complete(b).text == "from-a"  # no second model call to overwrite a's reply
+    client.end_game("a", completed=False)
+    client.end_game("b", completed=True)
+    reopened = ManagedClient(FakeLLM([]), cache=DiskCache(tmp_path / "c.sqlite"))
+    assert reopened.complete(a).text == "from-a"  # b still saved the reply it played with
 
 
 def test_cache_survives_reopen(tmp_path):

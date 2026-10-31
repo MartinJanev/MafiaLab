@@ -100,6 +100,8 @@ def run(
     todo = [
         (lu, seed) for lu in schedule for seed in range(1, games + 1) if not path(lu, seed).exists()
     ]
+    if skipped := len(schedule) * games - len(todo):
+        echo(f"Skipping {skipped} saved games, {len(todo)} left to play.")
     config = config or load_models()
     clients = {a: build_client(a, config=config) for lu, _ in todo for a in lu if a}
 
@@ -111,7 +113,7 @@ def run(
             seed,
             n_players=players,
             aliases=aliases,
-            # unique per lineup, so games played at the same time never share cached replies
+            # unique per lineup, so ending one game never saves or drops another game's replies
             game_id=path(job[0], seed).relative_to(out_dir).with_suffix("").as_posix(),
             progress=(lambda line: progress(f"{_dir('', job[0], players)} seed {seed} | {line}"))
             if progress

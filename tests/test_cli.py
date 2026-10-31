@@ -124,11 +124,31 @@ def test_a_halted_play_leaves_no_reply_files(tmp_path, monkeypatch):
         "mafialab.llm.registry.build_client", lambda alias, config: FakeLLM(['"Hi."'] * 3)
     )
     args = ["play", "--mafioso", "fake", "--detective", "fake", "--villager", "fake"]
-    stale = tmp_path / "players-4" / "M_fake__D_fake__V_fake" / "seed-0000" / "turns"
+    stale = tmp_path / "players-4" / "M_fake__D_fake__V_fake" / "seed-0000.partial" / "turns"
     stale.mkdir(parents=True)
     assert runner.invoke(app, [*args, "--out-dir", str(tmp_path)]).exit_code != 0
     assert not stale.parent.exists()
     assert not list(tmp_path.rglob("*.json"))
+
+
+def test_a_halted_replay_keeps_the_finished_game(tmp_path, monkeypatch):
+    from mafialab.llm import FakeLLM
+
+    halting = []
+    monkeypatch.setattr(
+        "mafialab.llm.registry.build_client",
+        lambda alias, config: FakeLLM(['"Hi."'] * 3) if halting else FakeLLM(default='"Hi."'),
+    )
+    args = ["play", "--mafioso", "fake", "--detective", "fake", "--villager", "fake"]
+    args += ["--out-dir", str(tmp_path)]
+    assert runner.invoke(app, args).exit_code == 0
+    seed_dir = tmp_path / "players-4" / "M_fake__D_fake__V_fake" / "seed-0000"
+    files = sorted(seed_dir.rglob("*.json"))
+    assert files
+    halting.append(True)
+    assert runner.invoke(app, args).exit_code != 0
+    assert sorted(seed_dir.rglob("*.json")) == files
+    assert not seed_dir.with_name("seed-0000.partial").exists()
 
 
 @pytest.mark.parametrize("command", ["tournament", "summary"])

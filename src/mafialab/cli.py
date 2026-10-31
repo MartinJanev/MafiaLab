@@ -122,9 +122,11 @@ def play(
     )
     config = load_models()
     clients = {a: build_client(a, config=config) for models in aliases.values() for a in models}
-    # the reply files of this seed; a halted run must not leave a half game behind
+    # the reply files go to a .partial folder that replaces the seed's folder only once the game
+    # finishes, so a halted run leaves no half game and keeps an earlier finished one intact
     run_dir = path.with_suffix("")
-    shutil.rmtree(run_dir, ignore_errors=True)
+    partial = run_dir.with_name(run_dir.name + ".partial")
+    shutil.rmtree(partial, ignore_errors=True)
     try:
         # the players of a role take its models in seat order
         log = play_game(
@@ -133,11 +135,13 @@ def play(
             n_players=players,
             aliases=aliases,
             progress=lambda line: typer.echo(line, err=True),
-            output_dir=run_dir,
+            output_dir=partial,
         )
     except BaseException:
-        shutil.rmtree(run_dir, ignore_errors=True)
+        shutil.rmtree(partial, ignore_errors=True)
         raise
+    shutil.rmtree(run_dir, ignore_errors=True)
+    partial.rename(run_dir)
 
     # the transcript: roles, night actions, discussion, votes
     roles = {p.name: p.role for p in log.players}

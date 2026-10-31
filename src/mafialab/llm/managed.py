@@ -33,7 +33,7 @@ class ManagedClient(LLMClient):
         self.base_delay = base_delay
         self._sleep = sleep
         # replies of games still being played, saved to the cache by end_game
-        self._held: dict[str, list[tuple[str, LLMResponse]]] = {}
+        self._held: dict[str, dict[str, LLMResponse]] = {}
         self._held_lock = threading.Lock()
 
     def complete(self, request: LLMRequest) -> LLMResponse:
@@ -41,13 +41,22 @@ class ManagedClient(LLMClient):
         Answer from the cache if this exact request was made before. Otherwise wait for the rate
         limiter, call the model (trying again on temporary errors), save the reply in the cache
         and record its cost. A request tagged with a game_id is held back from the cache until
-        end_game says that game finished, so a halted game leaves nothing cached.
+        end_game says that game finished, so a halted game leaves nothing cached. Whoever tags
+        a game_id must call end_game, or its replies are never cached.
         """
         # key on the settings the provider really sends, so editing models.yaml is a cache miss
         params = {**getattr(self.inner, "default_params", {}), **request.params}
         key = cache_key(self.provider, self.model, request.model_copy(update={"params": params}))
+        game = request.tags.get("game_id")
         if self.cache is not None:
             hit = self.cache.get(key)
+            if hit is None:
+                # a game still being played may have asked the same thing; reuse its reply, as
+                # the cache would once that game finishes, so both games stay replayable
+                with self._held_lock:
+                    hit = next((h[key] for h in self._held.values() if key in h), None)
+                    if hit is not None and game:
+                        self._held.setdefault(game, {})[key] = hit
             if hit is not None:
                 response = hit.model_copy(update={"cached": True, "latency_s": 0.0})
                 if self.tracker:
@@ -64,9 +73,9 @@ class ManagedClient(LLMClient):
             kwargs["sleep"] = self._sleep
         response = retry_with_backoff(call, **kwargs)
         if self.cache is not None:
-            if game := request.tags.get("game_id"):
+            if game:
                 with self._held_lock:
-                    self._held.setdefault(game, []).append((key, response))
+                    self._held.setdefault(game, {})[key] = response
             else:
                 self.cache.put(key, response)
         if self.tracker:
@@ -80,7 +89,7 @@ class ManagedClient(LLMClient):
         :param completed: Whether the game reached its end.
         """
         with self._held_lock:
-            held = self._held.pop(game_id, [])
+            held = self._held.pop(game_id, {})
         if completed and self.cache is not None:
-            for key, response in held:
+            for key, response in held.items():
                 self.cache.put(key, response)

@@ -32,7 +32,9 @@ def test_run_saves_every_game_and_resumes(tmp_path):
     assert run(schedule, 3, tmp_path, config=FAKES, echo=lines.append) == 12
     assert len(list(tmp_path.glob("players-4/M_*/seed-*.json"))) == 12
     assert lines[0].startswith("[1/12] players-4/M_a__D_b__V_b seed 1: ")
-    assert run(schedule, 3, tmp_path, config=FAKES) == 0
+    lines.clear()
+    assert run(schedule, 3, tmp_path, config=FAKES, echo=lines.append) == 0
+    assert lines == ["Skipping 12 saved games, 0 left to play."]
     live = []
     assert run(schedule, 4, tmp_path, config=FAKES, echo=lambda _: None, progress=live.append) == 4
     assert live[0].startswith("players-4/M_a__D_b__V_b seed 4 | ")
