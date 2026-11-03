@@ -13,7 +13,6 @@ class LLMError(RuntimeError):
 # a model call failed but may work if we wait and try again; retry_after is the server's
 # suggested wait in seconds
 class RetryableLLMError(LLMError):
-    # rate limits, 5xx, timeouts
     def __init__(self, message: str, retry_after: float | None = None):
         super().__init__(message)
         self.retry_after = retry_after

@@ -34,7 +34,8 @@ class LLMRequest(BaseModel):
     messages: list[ChatMessage]
     params: dict[str, Any] = Field(default_factory=dict)
     sample_index: int = 0  # separates repeated samples of the same prompt
-    # only for cost reporting, not part of the cache key
+    # labels for cost reports, and game_id tells ManagedClient which game a reply belongs to;
+    # not part of the cache key
     tags: dict[str, str] = Field(default_factory=dict)
 
     @classmethod
@@ -45,8 +46,7 @@ class LLMRequest(BaseModel):
         return "\n\n".join(m.content for m in self.messages)
 
 
-# what comes back: the reply text plus who answered, tokens, cost, time taken, whether it came
-# from our cache, why it stopped, the provider's raw JSON and the reasoning text if any
+# a model's reply, with its tokens, cost and timing, and whether it came from our cache
 class LLMResponse(BaseModel):
     text: str
     provider: str
@@ -57,7 +57,7 @@ class LLMResponse(BaseModel):
     latency_s: float = 0.0
     finish_reason: str | None = None
     raw: dict[str, Any] | None = None
-    thinking: str | None = None  # model's reasoning process if available
+    thinking: str | None = None  # the model's reasoning, if it sent any
 
 
 def cache_key(provider: str, model: str, request: LLMRequest) -> str:

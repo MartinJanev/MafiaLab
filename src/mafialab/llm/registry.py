@@ -105,7 +105,8 @@ def build_client(
     with cache, rate limit, retries and cost tracking.
     :param alias: A name from configs/models.yaml, e.g. "ollama-llama3.1-8b".
     :param config: The loaded models file; read from configs/models.yaml if not given.
-    :param cache: "default" uses data/cache/llm_cache.sqlite, None turns the cache off.
+    :param cache: "default" uses llm_cache.sqlite in data/cache (or MAFIALAB_CACHE_DIR), None
+        turns the cache off.
     :param tracker: Where to record costs; None records nothing.
     :param http_kwargs: Passed on to the client, see build_raw_client.
     """

@@ -1,0 +1,112 @@
+== 4 players
+
+Deceive: mafia wins, model as mafioso
+                    ollama-mistral-7b   ollama-qwen2.5-14b  
+ollama-qwen2.5-3b   19/30               8/30                
+ollama-llama3.2-3b  16/30               10/30               
+ollama-gemma3-4b    15/30               10/30               
+ollama-llama3.1-8b  17/30               16/30               
+ollama-mistral-7b   15/30               13/30               
+ollama-qwen2.5-7b   17/30               10/30               
+ollama-qwen3-8b     9/30                14/30               
+ollama-gemma3-12b   18/30               17/30               
+ollama-qwen2.5-14b  10/30               13/30               
+
+Detect: town wins, model as villager
+                    ollama-mistral-7b   ollama-qwen2.5-14b  
+ollama-qwen2.5-3b   14/30               23/30               
+ollama-llama3.2-3b  13/30               15/30               
+ollama-gemma3-4b    10/30               15/30               
+ollama-llama3.1-8b  10/30               14/30               
+ollama-mistral-7b   15/30               19/30               
+ollama-qwen2.5-7b   14/30               17/30               
+ollama-qwen3-8b     18/30               20/30               
+ollama-gemma3-12b   18/30               16/30               
+ollama-qwen2.5-14b  15/30               17/30               
+
+Disclose: town wins, model as detective
+                    ollama-mistral-7b   ollama-qwen2.5-14b  
+ollama-qwen2.5-3b   12/30               14/30               
+ollama-llama3.2-3b  17/30               12/30               
+ollama-gemma3-4b    12/30               10/30               
+ollama-llama3.1-8b  14/30               11/30               
+ollama-mistral-7b   15/30               16/30               
+ollama-qwen2.5-7b   10/30               12/30               
+ollama-qwen3-8b     18/30               18/30               
+ollama-gemma3-12b   21/30               21/30               
+ollama-qwen2.5-14b  19/30               17/30               
+
+Format failures: silent messages, random-fallback votes
+ollama-qwen2.5-3b   2/360 (1%)        4/180 (2%)
+ollama-llama3.2-3b  2/360 (1%)        20/180 (11%)
+ollama-gemma3-4b    0/360 (0%)        23/180 (13%)
+ollama-llama3.1-8b  4/360 (1%)        8/180 (4%)
+ollama-mistral-7b   103/3240 (3%)     19/1620 (1%)
+ollama-qwen2.5-7b   0/360 (0%)        0/180 (0%)
+ollama-qwen3-8b     0/360 (0%)        1/180 (1%)
+ollama-gemma3-12b   0/360 (0%)        0/180 (0%)
+ollama-qwen2.5-14b  5/3240 (0%)       0/1620 (0%)
+
+
+== 6 players
+
+Deceive: mafia wins, model as mafioso
+                    ollama-mistral-7b   ollama-qwen2.5-14b  
+ollama-qwen2.5-3b   5/10                5/10                
+ollama-llama3.2-3b  5/10                2/10                
+ollama-gemma3-4b    5/10                5/10                
+ollama-llama3.1-8b  2/10                6/10                
+ollama-mistral-7b   7/10                6/10                
+ollama-qwen2.5-7b   8/10                4/10                
+ollama-qwen3-8b     9/10                4/10                
+ollama-gemma3-12b   5/10                5/10                
+ollama-qwen2.5-14b  5/10                4/10                
+
+Detect: town wins, model as villager
+                    ollama-mistral-7b   ollama-qwen2.5-14b  
+ollama-qwen2.5-3b   7/10                6/10                
+ollama-llama3.2-3b  5/10                6/10                
+ollama-gemma3-4b    2/10                2/10                
+ollama-llama3.1-8b  2/10                5/10                
+ollama-mistral-7b   3/10                7/10                
+ollama-qwen2.5-7b   7/10                7/10                
+ollama-qwen3-8b     3/10                7/10                
+ollama-gemma3-12b   2/10                5/10                
+ollama-qwen2.5-14b  5/10                6/10                
+
+Disclose: town wins, model as detective
+                    ollama-mistral-7b   ollama-qwen2.5-14b  
+ollama-qwen2.5-3b   3/10                4/10                
+ollama-llama3.2-3b  4/10                4/10                
+ollama-gemma3-4b    3/10                7/10                
+ollama-llama3.1-8b  6/10                6/10                
+ollama-mistral-7b   3/10                4/10                
+ollama-qwen2.5-7b   7/10                5/10                
+ollama-qwen3-8b     6/10                5/10                
+ollama-gemma3-12b   8/10                3/10                
+ollama-qwen2.5-14b  7/10                6/10                
+
+Protect: town wins, model as doctor
+                    ollama-mistral-7b   ollama-qwen2.5-14b  
+ollama-qwen2.5-3b   4/10                5/10                
+ollama-llama3.2-3b  5/10                6/10                
+ollama-gemma3-4b    3/10                4/10                
+ollama-llama3.1-8b  4/10                6/10                
+ollama-mistral-7b   3/10                7/10                
+ollama-qwen2.5-7b   5/10                5/10                
+ollama-qwen3-8b     5/10                4/10                
+ollama-gemma3-12b   4/10                5/10                
+ollama-qwen2.5-14b  4/10                6/10                
+
+Format failures: silent messages, random-fallback votes, random-fallback night actions
+ollama-qwen2.5-3b   2/324 (1%)        21/162 (13%)      6/102 (6%)
+ollama-llama3.2-3b  3/334 (1%)        29/167 (17%)      6/103 (6%)
+ollama-gemma3-4b    2/334 (1%)        92/167 (55%)      41/101 (41%)
+ollama-llama3.1-8b  1/334 (0%)        28/167 (17%)      21/105 (20%)
+ollama-mistral-7b   213/4446 (5%)     90/2223 (4%)      12/1389 (1%)
+ollama-qwen2.5-7b   1/328 (0%)        7/164 (4%)        2/104 (2%)
+ollama-qwen3-8b     0/328 (0%)        0/164 (0%)        0/97 (0%)
+ollama-gemma3-12b   0/350 (0%)        1/175 (1%)        0/102 (0%)
+ollama-qwen2.5-14b  6/4182 (0%)       1/2091 (0%)       0/1277 (0%)
+
+

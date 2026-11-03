@@ -68,7 +68,7 @@ def test_town_wins_when_the_mafioso_is_voted_out():
     assert len(llm.calls) == 2 * 3 + 3  # two rounds of three speakers, then three votes
     assert all(m.parse_ok and m.text.startswith("I am") for m in log.messages)
     assert [m.round for m in log.messages] == [1, 1, 1, 2, 2, 2]
-    # The last vote prompt holds the whole discussion, the voter's own lines as "You: ...".
+    # the last vote prompt has the whole discussion, with the voter's own lines as "You: ..."
     last = llm.calls[-1].prompt_text()
     voter = log.votes[-1].voter
     assert f'You: "I am {voter}."' in last
@@ -220,7 +220,7 @@ def test_larger_games_end_and_never_prompt_the_dead(n):
         log = play_game(clients, seed=seed, n_players=n)
         roles = {p.name: p.role for p in log.players}
         assert log.config.preset == "mafia" and len(log.players) == n
-        # (day, phase) after which a player may not be asked anything: 0 night, 1 day
+        # when each dead player left the game, as (day, phase) with phase 0 = night, 1 = day
         out = {a.target: (a.night, 0) for a in log.night_actions if a.result == "killed"}
         out |= {d.arrested: (d.day, 1) for d in log.day_results}
         for request in llm.calls:

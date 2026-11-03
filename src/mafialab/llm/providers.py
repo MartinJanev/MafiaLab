@@ -9,8 +9,7 @@ from mafialab.llm.base import LLMClient, LLMError, RetryableLLMError
 from mafialab.llm.cost import Pricing
 from mafialab.llm.types import LLMRequest, LLMResponse, Usage
 
-# HTTP codes that mean "busy or briefly broken, try again later": timeouts, rate limits, server
-# errors
+# HTTP codes worth retrying: timeouts, rate limits and overloaded or broken servers
 RETRYABLE_STATUS = {408, 409, 425, 429, 500, 502, 503, 504, 529}
 
 

@@ -113,7 +113,7 @@ def run(
             seed,
             n_players=players,
             aliases=aliases,
-            # unique per lineup, so ending one game never saves or drops another game's replies
+            # one id per lineup and seed, so ending a game only touches its own replies
             game_id=path(job[0], seed).relative_to(out_dir).with_suffix("").as_posix(),
             progress=(lambda line: progress(f"{_dir('', job[0], players)} seed {seed} | {line}"))
             if progress

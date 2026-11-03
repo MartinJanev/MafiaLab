@@ -8,14 +8,13 @@ from typing import TypeVar
 
 from mafialab.llm.base import RetryableLLMError
 
-# whatever fn returns, so retry_with_backoff returns the same type
 T = TypeVar("T")
 
 
-# keeps calls under rpm per minute: a bucket refills by rpm/60 tokens per second, each call takes
-# one token and waits if the bucket is empty; it holds up to 5 seconds' worth, so short bursts pass
+# token bucket that keeps calls under rpm per minute: it refills by rpm/60 tokens a second and
+# each call takes one, waiting when it's empty. It holds 5 seconds' worth, so short bursts get
+# through. rpm <= 0 turns it off.
 class RateLimiter:
-    # token bucket; rpm <= 0 disables it
     def __init__(
         self,
         rpm: float,

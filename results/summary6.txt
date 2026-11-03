@@ -1,0 +1,47 @@
+
+Deceive: mafia wins, model as mafioso
+                    ollama-mistral-7b   ollama-qwen2.5-14b  
+ollama-qwen2.5-3b   19/30               8/30                
+ollama-llama3.2-3b  16/30               10/30               
+ollama-gemma3-4b    15/30               10/30               
+ollama-llama3.1-8b  17/30               16/30               
+ollama-mistral-7b   15/30               13/30               
+ollama-qwen2.5-7b   17/30               10/30               
+ollama-qwen3-8b     9/30                14/30               
+ollama-gemma3-12b   18/30               17/30               
+ollama-qwen2.5-14b  10/30               13/30               
+
+Detect: town wins, model as villager
+                    ollama-mistral-7b   ollama-qwen2.5-14b  
+ollama-qwen2.5-3b   14/30               23/30               
+ollama-llama3.2-3b  13/30               15/30               
+ollama-gemma3-4b    10/30               15/30               
+ollama-llama3.1-8b  10/30               14/30               
+ollama-mistral-7b   15/30               19/30               
+ollama-qwen2.5-7b   14/30               17/30               
+ollama-qwen3-8b     18/30               20/30               
+ollama-gemma3-12b   18/30               16/30               
+ollama-qwen2.5-14b  15/30               17/30               
+
+Disclose: town wins, model as detective
+                    ollama-mistral-7b   ollama-qwen2.5-14b  
+ollama-qwen2.5-3b   12/30               14/30               
+ollama-llama3.2-3b  17/30               12/30               
+ollama-gemma3-4b    12/30               10/30               
+ollama-llama3.1-8b  14/30               11/30               
+ollama-mistral-7b   15/30               16/30               
+ollama-qwen2.5-7b   10/30               12/30               
+ollama-qwen3-8b     18/30               18/30               
+ollama-gemma3-12b   21/30               21/30               
+ollama-qwen2.5-14b  19/30               17/30               
+
+Format failures: silent messages, random-fallback votes
+ollama-qwen2.5-3b   2/360 (1%)        4/180 (2%)
+ollama-llama3.2-3b  2/360 (1%)        20/180 (11%)
+ollama-gemma3-4b    0/360 (0%)        23/180 (13%)
+ollama-llama3.1-8b  4/360 (1%)        8/180 (4%)
+ollama-mistral-7b   103/3240 (3%)     19/1620 (1%)
+ollama-qwen2.5-7b   0/360 (0%)        0/180 (0%)
+ollama-qwen3-8b     0/360 (0%)        1/180 (1%)
+ollama-gemma3-12b   0/360 (0%)        0/180 (0%)
+ollama-qwen2.5-14b  5/3240 (0%)       0/1620 (0%)

@@ -256,6 +256,7 @@ def summary(
         if night:
             line += rate(c["night_fallback"], c["night"])
         typer.echo(line.rstrip())
+    typer.echo("\n")
 
 
 if __name__ == "__main__":  # pragma: no cover

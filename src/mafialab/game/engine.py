@@ -51,8 +51,9 @@ def play_game(
     :param clients: The model that plays each role, e.g. {"mafioso": ..., "detective": ...,
         "villager": ...}. Every player with the same role is played by the same model, unless
         the role gets a list: then its players, in seat order, take the models in turn.
-    :param seed: Decides who gets which role, the speaking order and the tie-breaks. With the
-        cache on, the same seed and models replay the same game.
+    :param seed: Decides the roles, the speaking order, tie-breaks, random fallback picks and
+        the scripted first-night victim. With the cache on, the same seed and models replay the
+        same game.
     :param n_players: 4 to 16. Games of 5 or more also have a doctor.
     :param aliases: The model name written in the log for each role, shaped like clients.
         Defaults to the client's model id.
@@ -185,7 +186,6 @@ def play_game(
         for listener in alive:
             memory[listener].extend(vote_line(v.voter, v.target, listener) for v in day_votes)
             memory[listener].append(line("arrested", name=arrested))
-        # keep the day's result for the log
         day_results.append(
             DayResult(
                 day=day,
@@ -209,8 +209,8 @@ def play_game(
         :param actor: The player acting.
         :param night: The night number.
         :param action: "investigate", "protect" or "kill"; it is written into the prompt.
-        :param candidates: Who they may pick. A reply that names nobody on this list gets a
-            random pick instead.
+        :param candidates: Who they may pick. A reply that doesn't start with one of these names
+            gets a random pick instead.
         :param forced: Skip the model and use this target (the scripted first night with 4
             players).
         :return: The chosen target.
@@ -324,7 +324,7 @@ def play_game(
             everyone else alive, otherwise None.
         """
         mafia = sum(roles[n] == "mafioso" for n in alive)
-        # at parity the mafia can no longer lose a vote
+        # at parity the town can't outvote the mafia anymore
         return "town" if mafia == 0 else "mafia" if mafia >= len(alive) - mafia else None
 
     # at the start a player knows only their own name and role (mafiosos also know each other)
@@ -354,7 +354,6 @@ def play_game(
         for client in set(client_of.values()):
             client.end_game(game_id, completed)
 
-    # everything that happened, in the shape that is saved as JSON
     return GameLog(
         game_id=game_id,
         source="engine",

@@ -53,7 +53,7 @@ class Message(_Strict):
     turn: dict[str, Any] | None = None  # engine games: the raw model reply
 
 
-# one day vote; fallback means the reply named nobody valid, so a random target was used
+# one day vote; fallback means the reply didn't start with a valid name, so the target is random
 class Vote(_Strict):
     day: int
     voter: str

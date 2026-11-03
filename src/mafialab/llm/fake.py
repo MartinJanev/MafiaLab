@@ -9,7 +9,6 @@ from mafialab.llm.types import LLMRequest, LLMResponse, Usage, estimate_tokens
 # a pretend model for tests: it answers from a fixed list of replies (or a function) instead of
 # calling a real model, and can be told to fail its first few calls
 class FakeLLM(LLMClient):
-    # script: replies returned in order, or a function request -> reply
     provider = "fake"
 
     def __init__(

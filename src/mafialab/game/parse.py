@@ -17,7 +17,6 @@ def parse_discussion(reply: str, max_chars: int = MAX_MESSAGE_CHARS) -> str | No
     :param max_chars: Longer messages are cut to this length.
     :return: The message without the quotes, or None if the player stays silent.
     """
-    # None means the player stays silent
     match = _QUOTED.match(reply.lstrip().split("\n", 1)[0])
     message = match[1].strip()[:max_chars] if match else ""
     return message or None
