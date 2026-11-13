@@ -56,12 +56,13 @@ def test_summaries_and_split_rate(tmp_path, monkeypatch):
     monkeypatch.setenv("MAFIALAB_CACHE_DIR", str(tmp_path / "cache"))
     chat = {"chat": {"players": 8, "games": 3, "models": ["fake"]}}
     pers = {"personality": {"players": 6, "games": 1, "models": ["fake"], "styles": ["cautious"]}}
-    assert "-" in summary("chat", chat, tmp_path)
+    rows = [line.split() for line in summary("chat", chat, tmp_path).splitlines()]
+    assert ["chat", "-", "-"] in rows and ["no-chat", "-", "-"] in rows
+    empty = summary("personality", pers, tmp_path).splitlines()
+    assert empty[4].split() == ["mafioso", "-", "-"] and "/" not in "".join(empty[3:])
     run("chat", chat, tmp_path, echo=lambda s: None)
     run("personality", pers, tmp_path, echo=lambda s: None)
     text = summary("chat", chat, tmp_path)
-    print(text)
-    print(summary("personality", pers, tmp_path))
     assert "Mafia chat, fake" in text and "no-chat" in text and "Δ" in text
     assert "Personality, fake" in summary("personality", pers, tmp_path)
     nights = 0
