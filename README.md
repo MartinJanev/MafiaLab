@@ -105,6 +105,8 @@ not be parsed.
 a game size and lineup, then read a game night by night and day by day, with the votes and, on
 request, each model's full reply.
 
+Browse experiment games with `mafialab view --out-dir data/experiments/chat` (or `personality`).
+
 Set `players: N` in the config (or pass `--players N` to both commands) to run the tournament on
 larger games. The tested model then takes every seat of its role, the background model takes all
 the others, and a fourth table, protect, has the tested model as the doctor.

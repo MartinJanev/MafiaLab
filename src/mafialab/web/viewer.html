@@ -107,6 +107,7 @@ let games = [];
 // "M_a+b__D_c__V_d" -> "mafioso a, b · detective c · villagers d"
 function lineupLabel(dir) {
   return dir.split("__").map((part) => {
+    if (!part.includes("_")) return esc(part);
     const [key, models] = [part.slice(0, part.indexOf("_")), part.slice(part.indexOf("_") + 1)];
     return `${ROLES[key] || key} <b>${models.split("+").map(short).join(", ")}</b>`;
   }).join(" · ");

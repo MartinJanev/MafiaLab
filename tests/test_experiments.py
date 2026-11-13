@@ -67,9 +67,41 @@ def test_summaries_and_split_rate(tmp_path, monkeypatch):
     assert "Personality, fake" in summary("personality", pers, tmp_path)
     nights = 0
     for p in arm_dir(tmp_path, "chat", 8, "fake", "no-chat").glob("seed-*.json"):
-        picks: dict[int, int] = {}
+        picks: dict[int, list[bool]] = {}
         for a in load_game(p).night_actions:
             if a.action == "kill":
-                picks[a.night] = picks.get(a.night, 0) + 1
-        nights += sum(c >= 2 for c in picks.values())
+                picks.setdefault(a.night, []).append(a.fallback)
+        nights += sum(len(f) >= 2 and not any(f) for f in picks.values())
     assert split_rate(tmp_path, 8, "fake", "no-chat")[1] == nights
+
+
+def test_jobs_run_seed_first_within_a_model(tmp_path, monkeypatch):
+    monkeypatch.setenv("MAFIALAB_CACHE_DIR", str(tmp_path / "cache"))
+    cfg = {"chat": {"players": 8, "games": 2, "models": ["fake"]}}
+    seen = []
+    run("chat", cfg, tmp_path, echo=seen.append)
+    assert [(line.split("__")[1].split()[0], line.split()[-2].rstrip(":")) for line in seen] == [
+        ("chat", "1"),
+        ("no-chat", "1"),
+        ("chat", "2"),
+        ("no-chat", "2"),
+    ]
+
+
+def test_split_rate_ignores_random_fallback_picks(tmp_path, monkeypatch):
+    from mafialab.game.log import save_game
+
+    monkeypatch.setenv("MAFIALAB_CACHE_DIR", str(tmp_path / "cache"))
+    cfg = {"chat": {"players": 8, "games": 1, "models": ["fake"]}}
+    run("chat", cfg, tmp_path, echo=lambda s: None)
+    path = arm_dir(tmp_path, "chat", 8, "fake", "chat") / "seed-0001.json"
+    log = load_game(path)
+    kills = [a for a in log.night_actions if a.action == "kill"]
+    base = split_rate(tmp_path, 8, "fake", "chat")
+    extra = [
+        kills[0].model_copy(update={"night": 99, "target": "A", "fallback": True}),
+        kills[0].model_copy(update={"night": 99, "target": "B", "fallback": False}),
+    ]
+    log.night_actions = log.night_actions + extra
+    save_game(log, path)
+    assert split_rate(tmp_path, 8, "fake", "chat") == base

@@ -281,6 +281,21 @@ def summary(
     typer.echo("\n")
 
 
+def _experiment_cfg(name: str, config: Path | None) -> dict:
+    """
+    Load the experiments config; stop with a clear error if it lacks the block or has bad players.
+    """
+    from mafialab import paths
+    from mafialab.experiments import load_config
+
+    cfg = load_config(config)
+    if not isinstance(cfg, dict) or not isinstance(cfg.get(name), dict):
+        where = config or paths.configs_dir() / "experiments.yaml"
+        raise typer.BadParameter(f"no {name!r} block in {where}", param_hint="--config")
+    _check_players(cfg[name].get("players", 0))
+    return cfg
+
+
 def _check_experiment(name: str) -> str:
     from mafialab.experiments import EXPERIMENTS
 
@@ -304,10 +319,10 @@ def experiment_run(
 ) -> None:
     """Play every arm of one experiment, skipping games that are already saved."""
     from mafialab import paths
-    from mafialab.experiments import arms, load_config, run
+    from mafialab.experiments import arms, run
 
     _check_experiment(name)
-    cfg = load_config(config)
+    cfg = _experiment_cfg(name, config)
     played = run(
         name,
         cfg,
@@ -332,11 +347,15 @@ def experiment_summary(
 ) -> None:
     """Print win rates per arm with the difference to the baseline."""
     from mafialab import paths
-    from mafialab.experiments import load_config, summary
+    from mafialab.experiments import summary
 
     _check_experiment(name)
     typer.echo(
-        summary(name, load_config(config), out_dir or paths.repo_root() / "data" / "experiments")
+        summary(
+            name,
+            _experiment_cfg(name, config),
+            out_dir or paths.repo_root() / "data" / "experiments",
+        )
     )
 
 

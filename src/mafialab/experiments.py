@@ -68,10 +68,15 @@ def run(
     players = cfg[name]["players"]
     games = games if games is not None else cfg[name]["games"]
     jobs: list[Job] = []
-    for model, label, kwargs in all_arms:
+    # models outermost so Ollama doesn't reload between games, seeds before arms so an early
+    # stop leaves every arm with about the same number of games
+    for model in dict.fromkeys(m for m, _, _ in all_arms):
         aliases = dict.fromkeys(composition(players), model)
-        folder = arm_dir(out_dir, name, players, model, label)
-        jobs += [(folder / f"seed-{s:04d}.json", s, aliases, kwargs) for s in range(1, games + 1)]
+        for s in range(1, games + 1):
+            for m, label, kwargs in all_arms:
+                if m == model:
+                    folder = arm_dir(out_dir, name, players, model, label)
+                    jobs.append((folder / f"seed-{s:04d}.json", s, aliases, kwargs))
     return play_jobs(
         jobs, out_dir, players=players, workers=workers, config=config, echo=echo, progress=progress
     )
@@ -94,19 +99,21 @@ def wins(
 
 def split_rate(out_dir: str | Path, players: int, model: str, label: str) -> tuple[int, int]:
     """
-    How often the mafia disagreed on the kill in one arm of the chat experiment.
-    :return: (nights where the kill picks differed, nights with 2 or more kill picks).
+    How often the mafia disagreed on the kill in one arm of the chat experiment. Nights where a
+    pick was a random fallback are left out, since that pick was not a choice.
+    :return: (nights where the kill picks differed, nights with 2 or more kill picks, none of
+        them a fallback).
     """
     split = total = 0
     for log in _logs(arm_dir(out_dir, "chat", players, model, label)):
-        picks: dict[int, list[str]] = {}
+        picks: dict[int, list[Any]] = {}
         for a in log.night_actions:
             if a.action == "kill":
-                picks.setdefault(a.night, []).append(a.target)
-        for targets in picks.values():
-            if len(targets) >= 2:
+                picks.setdefault(a.night, []).append(a)
+        for night in picks.values():
+            if len(night) >= 2 and not any(a.fallback for a in night):
                 total += 1
-                split += len(set(targets)) > 1
+                split += len({a.target for a in night}) > 1
     return split, total
 
 

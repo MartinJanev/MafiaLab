@@ -122,3 +122,31 @@ def test_z_scores_standardize_each_background_then_average():
     z = z_scores(table)
     assert z == pytest.approx({"a": 0.5, "b": 0.0, "c": -0.5})
     assert posterior(35, 100) == pytest.approx((36 / 102, (36 / 102 * 66 / 102 / 103) ** 0.5))
+
+
+def test_missing_ollama_model_fails_before_any_game(tmp_path, monkeypatch):
+    import httpx
+
+    from mafialab import tournament
+    from mafialab.game.prompts import composition
+    from mafialab.llm.providers import OllamaClient
+
+    http = httpx.Client(
+        transport=httpx.MockTransport(lambda r: httpx.Response(200, json={"models": []}))
+    )
+
+    class Wrapper:
+        inner = OllamaClient("qwen:1b", base_url="http://ollama.test", http=http)
+
+    monkeypatch.setattr(tournament, "build_client", lambda alias, config: Wrapper())
+    jobs = [
+        (
+            tmp_path / "g" / "seed-0001.json",
+            1,
+            dict.fromkeys(composition(4), "ollama-qwen2.5-14b"),
+            {},
+        )
+    ]
+    with pytest.raises(RuntimeError, match="ollama pull qwen:1b"):
+        tournament.play_jobs(jobs, tmp_path, players=4)
+    assert list(tmp_path.rglob("*.json")) == []

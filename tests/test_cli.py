@@ -178,3 +178,15 @@ def test_experiment_run_then_summary(tmp_path, monkeypatch):
 
 def test_experiment_rejects_unknown_name():
     assert runner.invoke(app, ["experiment", "run", "tournament"]).exit_code != 0
+
+
+def test_experiment_config_mistakes_are_cli_errors(tmp_path):
+    config = tmp_path / "experiments.yaml"
+    config.write_text("chat:\n  players: 8\n  games: 1\n  models: [fake]\n")
+    for command in ("run", "summary"):
+        result = runner.invoke(app, ["experiment", command, "personality", "--config", str(config)])
+        assert result.exit_code == 2 and "personality" in result.output
+        assert not isinstance(result.exception, KeyError)
+    config.write_text("chat:\n  players: 3\n  games: 1\n  models: [fake]\n")
+    result = runner.invoke(app, ["experiment", "run", "chat", "--config", str(config)])
+    assert result.exit_code == 2 and "4 to 16" in result.output

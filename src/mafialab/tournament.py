@@ -115,6 +115,12 @@ def play_jobs(
     }
     # what each model was, written into every log so results can be traced to a build
     models = {a: model_info(config, a, c.inner) for a, c in clients.items()}
+    for a, c in clients.items():
+        if isinstance(c.inner, OllamaClient) and "digest" not in models[a]:
+            raise RuntimeError(
+                f"Ollama has no model {c.inner.model!r} for alias {a!r}: start the server and run "
+                f"`ollama pull {c.inner.model}`"
+            )
 
     def label(path: Path, seed: int) -> str:
         return f"{path.parent.relative_to(out_dir).as_posix()} seed {seed}"
