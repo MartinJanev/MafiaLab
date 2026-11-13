@@ -101,7 +101,12 @@ def test_split_rate_ignores_random_fallback_picks(tmp_path, monkeypatch):
     extra = [
         kills[0].model_copy(update={"night": 99, "target": "A", "fallback": True}),
         kills[0].model_copy(update={"night": 99, "target": "B", "fallback": False}),
+        kills[0].model_copy(update={"night": 100, "target": "A", "fallback": False}),
+        kills[0].model_copy(update={"night": 100, "target": "B", "fallback": False}),
+        kills[0].model_copy(update={"night": 101, "target": "A", "fallback": False}),
+        kills[0].model_copy(update={"night": 101, "target": "A", "fallback": False}),
     ]
     log.night_actions = log.night_actions + extra
     save_game(log, path)
-    assert split_rate(tmp_path, 8, "fake", "chat") == base
+    # the fallback night adds nothing; one real split night and one real agreeing night count
+    assert split_rate(tmp_path, 8, "fake", "chat") == (base[0] + 1, base[1] + 2)
