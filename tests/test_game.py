@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 
 import pytest
@@ -7,11 +8,13 @@ import pytest
 from mafialab import paths
 from mafialab.game.parse import parse_discussion, parse_vote
 from mafialab.game.prompts import (
+    CHAT_SLOTS,
     NAMES,
     composition,
     composition_text,
     discussion_action,
     game_prompt,
+    line,
     message_line,
     night_action,
     start_memory,
@@ -48,6 +51,8 @@ def test_game_prompt_is_the_template_filled():
     ]
     action = discussion_action(2)
     raw = (paths.prompts_dir() / "mafia/game_prompt.txt").read_text()
+    for slot in CHAT_SLOTS:
+        raw = raw.replace("{" + slot + "}", line(slot))
     expected = (
         raw.replace("{composition}", "1 mafioso, 1 detective, 2 villagers")
         .replace("{name}", "Bob")
@@ -134,8 +139,8 @@ def test_every_size_reads_the_same_rules():
     assert four[:rules] == nine[:rules]
     for ours in ("chosen most often", "at least as many", "two nights in a row"):
         assert ours in four
-    for paper_text in ("One randomly selected mafioso", "eliminate all non-mafiosos"):
-        assert paper_text not in four
+    for dropped in ("One randomly selected mafioso", "eliminate all non-mafiosos"):
+        assert dropped not in four
 
 
 def test_night_action_and_memory_lines():
@@ -164,3 +169,19 @@ def test_turn_writer_keeps_the_reasoning_and_raw_reply(tmp_path):
     files = writer.save_turn(1, "vote", "Bob", rich)
     assert json.loads((tmp_path / files["thinking_file"]).read_text())["thinking"] == "Bob lied."
     assert json.loads((tmp_path / files["metadata_file"]).read_text())["raw_response"] == {"id": 1}
+
+
+# the rulebook before the chat could be switched off
+CHAT_RULES_SHA = "6aa805ed835481e134edb40677be2603b4d02ff198dc875303374f14cd514cf2"
+
+
+def test_chat_rules_render_as_before():
+    text = game_prompt("Alice", ["m"], "ACT", NAMES[:8])
+    assert hashlib.sha256(text.encode()).hexdigest() == CHAT_RULES_SHA
+
+
+def test_no_chat_rules_never_mention_a_chat():
+    text = game_prompt("Alice", ["m"], "ACT", NAMES[:8], mafia_chat=False)
+    assert "mafia chat" not in text.lower() and "talk privately" not in text
+    assert "There is no private chat at night" in text
+    assert "{" not in text.split("#YOUR MEMORY:")[0]

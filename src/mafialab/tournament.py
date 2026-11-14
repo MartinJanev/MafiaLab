@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+import statistics
 from collections import Counter, defaultdict
 from collections.abc import Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor
@@ -12,6 +14,8 @@ from mafialab import paths
 from mafialab.game.engine import play_game
 from mafialab.game.log import GameLog, load_game, save_game
 from mafialab.game.prompts import composition
+from mafialab.llm import LLMClient
+from mafialab.llm.providers import OllamaClient
 from mafialab.llm.registry import ModelsConfig, build_client, load_models
 
 CAPABILITIES = ("deceive", "detect", "disclose")
@@ -83,6 +87,64 @@ def _dir(out_dir: str | Path, lu: Lineup, players: int) -> Path:
     return lineup_dir(out_dir, *lu[:3], doctor=lu[3], players=players)
 
 
+Job = tuple[Path, int, dict[str, str], dict[str, Any]]
+
+
+def play_jobs(
+    jobs: list[Job],
+    out_dir: str | Path,
+    *,
+    players: int,
+    workers: int = 1,
+    config: ModelsConfig | None = None,
+    echo: Callable[[str], None] = print,
+    progress: Callable[[str], None] | None = None,
+) -> int:
+    """
+    Play the games whose log is not saved yet and save each one.
+    :param jobs: (log path, seed, model alias per role, extra play_game keyword arguments).
+    :param out_dir: Root the log paths are under; the game id is the path relative to it.
+    :return: Number of games played.
+    """
+    todo = [job for job in jobs if not job[0].exists()]
+    if skipped := len(jobs) - len(todo):
+        echo(f"Skipping {skipped} saved games, {len(todo)} left to play.")
+    config = config or load_models()
+    clients = {
+        a: build_client(a, config=config) for *_, aliases, _ in todo for a in aliases.values()
+    }
+    # what each model was, written into every log so results can be traced to a build
+    models = {a: model_info(config, a, c.inner) for a, c in clients.items()}
+
+    def label(path: Path, seed: int) -> str:
+        return f"{path.parent.relative_to(out_dir).as_posix()} seed {seed}"
+
+    def play(job: Job) -> GameLog:
+        path, seed, aliases, kwargs = job
+        log = play_game(
+            {role: clients[a] for role, a in aliases.items()},
+            seed,
+            n_players=players,
+            aliases=aliases,
+            # one id per game, so ending a game only touches its own replies
+            game_id=path.relative_to(out_dir).with_suffix("").as_posix(),
+            progress=(lambda line: progress(f"{label(path, seed)} | {line}")) if progress else None,
+            **kwargs,
+        )
+        log.metadata["models"] = {a: models[a] for a in aliases.values()}
+        save_game(log, path)
+        return log
+
+    pool = ThreadPoolExecutor(workers)
+    try:
+        for i, (job, log) in enumerate(zip(todo, pool.map(play, todo), strict=True), 1):
+            echo(f"[{i}/{len(todo)}] {label(job[0], job[1])}: {log.outcome.winner}")
+    finally:
+        # on Ctrl-C, drop the queued games instead of playing them all first
+        pool.shutdown(cancel_futures=True)
+    return len(todo)
+
+
 def run(
     schedule: list[Lineup],
     games: int,
@@ -94,42 +156,28 @@ def run(
     echo: Callable[[str], None] = print,
     progress: Callable[[str], None] | None = None,
 ) -> int:
-    def path(lu: Lineup, seed: int) -> Path:
-        return log_path(out_dir, *lu[:3], seed, doctor=lu[3], players=players)
-
-    todo = [
-        (lu, seed) for lu in schedule for seed in range(1, games + 1) if not path(lu, seed).exists()
-    ]
-    if skipped := len(schedule) * games - len(todo):
-        echo(f"Skipping {skipped} saved games, {len(todo)} left to play.")
-    config = config or load_models()
-    clients = {a: build_client(a, config=config) for lu, _ in todo for a in lu if a}
-
-    def play(job: tuple[Lineup, int]) -> GameLog:
-        (m, d, v, doc), seed = job
+    jobs: list[Job] = []
+    for lu in schedule:
+        m, d, v, doc = lu
         aliases = {"mafioso": m, "detective": d, "villager": v} | ({"doctor": doc} if doc else {})
-        log = play_game(
-            {role: clients[a] for role, a in aliases.items()},
-            seed,
-            n_players=players,
-            aliases=aliases,
-            # one id per lineup and seed, so ending a game only touches its own replies
-            game_id=path(job[0], seed).relative_to(out_dir).with_suffix("").as_posix(),
-            progress=(lambda line: progress(f"{_dir('', job[0], players)} seed {seed} | {line}"))
-            if progress
-            else None,
-        )
-        save_game(log, path(job[0], seed))
-        return log
+        for seed in range(1, games + 1):
+            path = log_path(out_dir, *lu[:3], seed, doctor=doc, players=players)
+            jobs.append((path, seed, aliases, {}))
+    return play_jobs(
+        jobs, out_dir, players=players, workers=workers, config=config, echo=echo, progress=progress
+    )
 
-    pool = ThreadPoolExecutor(workers)
-    try:
-        for i, ((lu, seed), log) in enumerate(zip(todo, pool.map(play, todo), strict=True), 1):
-            echo(f"[{i}/{len(todo)}] {_dir('', lu, players)} seed {seed}: {log.outcome.winner}")
-    finally:
-        # on Ctrl-C, drop the queued games instead of playing them all first
-        pool.shutdown(cancel_futures=True)
-    return len(todo)
+
+def model_info(config: ModelsConfig, alias: str, client: LLMClient) -> dict[str, Any]:
+    """
+    The provider, model id and sampling params behind an alias, plus the server's build of the
+    model for Ollama.
+    """
+    spec = config.get(alias)
+    info = {"provider": spec.provider, "model": spec.model, "params": spec.params}
+    if isinstance(client, OllamaClient):
+        info |= client.build()
+    return info
 
 
 def _logs(out_dir: str | Path, lu: Lineup, players: int) -> list[GameLog]:
@@ -167,10 +215,37 @@ def format_failures(
                 c = counts[model[vote.voter]]
                 c["votes"] += 1
                 c["fallback"] += vote.fallback
-            # scripted night actions have no model reply
             for action in log.night_actions:
-                if action.turn is not None:
-                    c = counts[model[action.actor]]
-                    c["night"] += 1
-                    c["night_fallback"] += action.fallback
+                c = counts[model[action.actor]]
+                c["night"] += 1
+                c["night_fallback"] += action.fallback
     return counts
+
+
+def posterior(wins: int, games: int) -> tuple[float, float]:
+    """
+    Mean and standard deviation of a win rate under a uniform prior (Beta posterior).
+    """
+    p = (wins + 1) / (games + 2)
+    return p, math.sqrt(p * (1 - p) / (games + 3))
+
+
+def z_scores(table: dict[tuple[str, str], tuple[int, int]]) -> dict[str, float]:
+    """
+    Each model's score in one capability: its posterior win rate standardized over the models
+    of each background (sample standard deviation), then averaged over the backgrounds.
+    :param table: (wins, games) per (model, background), as win_tables gives it. Cells with no
+        games are left out.
+    """
+    rates: dict[str, dict[str, float]] = defaultdict(dict)
+    for (m, b), (k, n) in table.items():
+        if n:
+            rates[b][m] = posterior(k, n)[0]
+    z: dict[str, list[float]] = defaultdict(list)
+    for by_model in rates.values():
+        if len(by_model) < 2:
+            continue
+        mu, sd = statistics.mean(by_model.values()), statistics.stdev(by_model.values())
+        for m, p in by_model.items():
+            z[m].append((p - mu) / sd if sd else 0.0)
+    return {m: statistics.mean(v) for m, v in z.items()}

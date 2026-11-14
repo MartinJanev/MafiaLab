@@ -1,14 +1,14 @@
 # MafiaLab
 
-LLM agents playing Mafia, built on the paper *Deceive, Detect, and Disclose: Large Language Models
-Playing Mini-Mafia* (ICLR 2026 submission).
+LLM agents playing Mafia against each other, to measure how well each model deceives, detects,
+discloses and protects.
 
 One game for 4 to 16 players. Nights and days alternate until no mafioso is left (town wins) or
-the mafiosos are as many as everyone else (mafia wins). The smallest game is the paper's
-Mini-Mafia: one mafioso, one detective, two villagers. Its first night is scripted (the mafioso
-kills a villager, the detective learns who the mafioso is), so the three survivors talk for two
-rounds and one vote decides the game. Roles are never revealed, not even when a player dies or is
-arrested, so anything a player says about a role is a claim the others cannot check.
+the mafiosos are as many as everyone else (mafia wins). The smallest game has one mafioso, one
+detective and two villagers: after one night kill the three survivors talk for two rounds and one
+vote decides the game. From 5 players a doctor joins the town. Roles are never revealed, not even
+when a player dies or is arrested, so anything a player says about a role is a claim the others
+cannot check.
 
 ## Setup
 
@@ -21,13 +21,13 @@ make test
 mafialab models list
 ```
 
-Models run locally through [Ollama](https://ollama.com). The three open-weight models from the paper:
+Models run locally through [Ollama](https://ollama.com), for example:
 
 ```bash
 ollama pull llama3.1:8b && ollama pull mistral:7b && ollama pull qwen2.5:7b
 ```
 
-The paper's API models (OpenRouter, Anthropic) are in `configs/paid-models.yaml` and need
+Paid API models (OpenRouter, Anthropic) are in `configs/paid-models.yaml` and need
 `OPENROUTER_API_KEY` or `ANTHROPIC_API_KEY`. Two free hosted models (DeepSeek, GPT-OSS) run on
 NVIDIA NIM and need `NVIDIA_API_KEY`. Put the keys in a `.env` file (see `.env.example`) or export
 them in the shell.
@@ -52,10 +52,10 @@ earlier finished game of that seed is kept as it was.
 
 ## Larger games
 
-`--players N` (4 to 16, default 4) sets the game size. From 5 players the models choose the night
-actions themselves, and a doctor joins the town and protects one player each night, so these
-games also need `--doctor`. From 8 players there are two or more mafiosos; each night they first
-send one private message each, which only the other mafiosos see, and then pick their targets.
+`--players N` (4 to 16, default 4) sets the game size. From 5 players a doctor joins the town and
+protects one player each night, so these games also need `--doctor`. From 8 players there are two
+or more mafiosos; each night they first send one private message each, which only the other
+mafiosos see, and then pick their targets.
 
 | Players | Mafiosos | Doctor | Detective | Villagers |
 |---------|----------|--------|-----------|-----------|
@@ -80,7 +80,7 @@ mafialab play --players 8 --mafioso ollama-gemma3-12b,ollama-qwen2.5-3b \
 ```
 
 Logs go to `data/games/players-N/`. With players voting at random, a 12-player game takes about
-120 model calls (4 players take 9), so expect minutes per game on local models.
+120 model calls (4 players take 11), so expect minutes per game on local models.
 
 ## Tournament
 
@@ -101,18 +101,36 @@ seed), so `mafialab tournament --live 2> live.log` and `tail -f live.log` follow
 `summary` prints the win counts per role and background, and how often each model's replies could
 not be parsed.
 
+`mafialab view` opens the saved games in the browser (`--no-browser` to only print the URL): pick
+a game size and lineup, then read a game night by night and day by day, with the votes and, on
+request, each model's full reply.
+
 Set `players: N` in the config (or pass `--players N` to both commands) to run the tournament on
 larger games. The tested model then takes every seat of its role, the background model takes all
 the others, and a fourth table, protect, has the tested model as the doctor.
 
+## Experiments
+
+`configs/experiments.yaml` sets up two more experiments: `personality` (a play style for one role,
+against a baseline with no style) and `chat` (the mafia night chat on or off).
+
+```bash
+mafialab experiment run chat     # or personality; add --games N or --workers N as needed
+mafialab experiment summary chat
+```
+
+Logs go to `data/experiments` (`--out-dir`), one folder per arm, and saved games are skipped on a
+rerun. The summary prints win rates with the difference to the baseline arm.
+
 ## Layout
 
 ```
-paper/                the paper, its tables and example transcripts
-prompts/              what models read: the game prompt, memory lines, the paper's prompts
+prompts/mafia/        what models read: the game prompt, the turn instructions, memory lines
 configs/              model aliases, provider settings, tournament setup
 src/mafialab/llm/     LLM clients (Ollama, OpenAI-compatible, Anthropic), cache, retries
 src/mafialab/game/    prompt filling, reply parsing, game loop, game log
 src/mafialab/tournament.py  lineups, resumable runner, win tables
+src/mafialab/experiments.py  personality and mafia chat experiments, their summaries
+src/mafialab/web/     `mafialab view`: local web page for reading saved games
 tests/
 ```

@@ -17,6 +17,11 @@ models_app = typer.Typer(
     help="Inspect configured models (configs/models.yaml).", no_args_is_help=True
 )
 app.add_typer(models_app, name="models")
+experiment_app = typer.Typer(
+    help="The personality and mafia chat experiments (configs/experiments.yaml).",
+    no_args_is_help=True,
+)
+app.add_typer(experiment_app, name="experiment")
 
 
 def load_dotenv(env: Path) -> None:
@@ -223,9 +228,18 @@ def summary(
     out_dir: Path | None = typer.Option(None, help="Where the logs are (default: data/games)."),
     players: int | None = typer.Option(None, help="Players per game (default: from the config)."),
 ) -> None:
-    """Print win counts per capability and background, and format failures per model."""
+    """
+    Print win counts per capability and background with the posterior win rate (mean and sd)
+    and each model's z-score, and format failures per model.
+    """
     from mafialab import paths
-    from mafialab.tournament import format_failures, load_config, win_tables
+    from mafialab.tournament import (
+        format_failures,
+        load_config,
+        posterior,
+        win_tables,
+        z_scores,
+    )
 
     cfg = load_config(config)
     models, backgrounds = cfg["models"], cfg["backgrounds"]
@@ -238,25 +252,114 @@ def summary(
         "disclose": "Disclose: town wins, model as detective",
         "protect": "Protect: town wins, model as doctor",
     }
-    for capability, table in win_tables(out_dir, models, backgrounds, players).items():
+
+    def cell(wins: int, games: int) -> str:
+        p, sd = posterior(wins, games)
+        return f"{wins}/{games} {p:.0%}±{sd * 100:.0f}" if games else "-"
+
+    tables = win_tables(out_dir, models, backgrounds, players)
+    typer.echo("Cells: wins/games, posterior win rate ± sd. z: score over the tested models.")
+    for capability, table in tables.items():
+        z = z_scores(table)
         typer.echo(f"\n{titles[capability]}")
-        typer.echo(" " * width + "".join(f"{b:<{width}}" for b in backgrounds))
+        typer.echo(" " * width + "".join(f"{b:<{width}}" for b in backgrounds) + "z")
         for m in models:
-            cells = ["{}/{}".format(*table[m, b]) for b in backgrounds]
-            typer.echo(f"{m:<{width}}" + "".join(f"{c:<{width}}" for c in cells))
+            cells = [cell(*table[m, b]) for b in backgrounds]
+            score = f"{z[m]:+.2f}" if m in z else "-"
+            typer.echo(f"{m:<{width}}" + "".join(f"{c:<{width}}" for c in cells) + score)
 
     def rate(bad: int, total: int) -> str:
         return f"{bad}/{total} ({bad / total:.0%})" if total else "-"
 
-    night = ", random-fallback night actions" if players > 4 else ""
-    typer.echo(f"\nFormat failures: silent messages, random-fallback votes{night}")
+    typer.echo(
+        "\nFormat failures: silent messages, random-fallback votes, random-fallback night actions"
+    )
     for m, c in format_failures(out_dir, models, backgrounds, players).items():
         silent, fallback = rate(c["silent"], c["messages"]), rate(c["fallback"], c["votes"])
-        line = f"{m:<{width}}{silent:<18}{fallback:<18}"
-        if night:
-            line += rate(c["night_fallback"], c["night"])
-        typer.echo(line.rstrip())
+        night = rate(c["night_fallback"], c["night"])
+        typer.echo(f"{m:<{width}}{silent:<18}{fallback:<18}{night}".rstrip())
     typer.echo("\n")
+
+
+def _check_experiment(name: str) -> str:
+    from mafialab.experiments import EXPERIMENTS
+
+    if name not in EXPERIMENTS:
+        raise typer.BadParameter(f"expected one of {', '.join(EXPERIMENTS)}", param_hint="NAME")
+    return name
+
+
+@experiment_app.command("run")
+def experiment_run(
+    name: str = typer.Argument(..., help="personality or chat."),
+    config: Path | None = typer.Option(
+        None, help="Experiments config (default: configs/experiments.yaml)."
+    ),
+    games: int | None = typer.Option(None, help="Games per arm (default: from the config)."),
+    workers: int = typer.Option(1, help="Games played at the same time."),
+    out_dir: Path | None = typer.Option(
+        None, help="Where to write the logs (default: data/experiments)."
+    ),
+    live: bool = typer.Option(False, help="Print every model reply as it arrives."),
+) -> None:
+    """Play every arm of one experiment, skipping games that are already saved."""
+    from mafialab import paths
+    from mafialab.experiments import arms, load_config, run
+
+    _check_experiment(name)
+    cfg = load_config(config)
+    played = run(
+        name,
+        cfg,
+        out_dir or paths.repo_root() / "data" / "experiments",
+        games=games,
+        workers=workers,
+        echo=typer.echo,
+        progress=(lambda line: typer.echo(line, err=True)) if live else None,
+    )
+    typer.echo(f"Played {played} games over {len(arms(name, cfg))} arms.")
+
+
+@experiment_app.command("summary")
+def experiment_summary(
+    name: str = typer.Argument(..., help="personality or chat."),
+    config: Path | None = typer.Option(
+        None, help="Experiments config (default: configs/experiments.yaml)."
+    ),
+    out_dir: Path | None = typer.Option(
+        None, help="Where the logs are (default: data/experiments)."
+    ),
+) -> None:
+    """Print win rates per arm with the difference to the baseline."""
+    from mafialab import paths
+    from mafialab.experiments import load_config, summary
+
+    _check_experiment(name)
+    typer.echo(
+        summary(name, load_config(config), out_dir or paths.repo_root() / "data" / "experiments")
+    )
+
+
+@app.command()
+def view(
+    out_dir: Path | None = typer.Option(None, help="Where the logs are (default: data/games)."),
+    port: int = typer.Option(8765, help="Port on 127.0.0.1."),
+    browser: bool = typer.Option(True, help="Open the page in the default browser."),
+) -> None:
+    """Browse saved games in the browser: players, night actions, discussion and votes."""
+    import contextlib
+    import webbrowser
+
+    from mafialab import paths
+    from mafialab.web.viewer import serve
+
+    server = serve(out_dir or paths.repo_root() / "data" / "games", port)
+    url = f"http://127.0.0.1:{server.server_port}/"
+    typer.echo(f"Viewer at {url} (Ctrl+C to stop)")
+    if browser:
+        webbrowser.open(url)
+    with contextlib.suppress(KeyboardInterrupt):
+        server.serve_forever()
 
 
 if __name__ == "__main__":  # pragma: no cover

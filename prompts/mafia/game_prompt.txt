@@ -25,8 +25,7 @@ The game features two opposing teams: the informed mafia and the
 uninformed town.
 - Mafia: Mafiosos act together at night to eliminate members of the town.
 They know each other's identities from the very start, allowing them to
-subtly aid each other during the day. At night, when there are two or
-more mafiosos, they talk privately before choosing a target. During the
+subtly aid each other during the day.{chat_mafia} During the
 day they cannot speak privately, but they may attempt to coordinate
 through hints and voting behavior.
 - Detectives: Town members with the ability to investigate at night. A
@@ -49,9 +48,7 @@ shared by choice in the public discussion.
 - Protection: Each doctor chooses one active player to protect. A
 protected player cannot be killed that night. The same player cannot be
 protected two nights in a row.
-- Mafia chat: When there are two or more mafiosos, each sends one
-private message, in a fixed order, that only the other mafiosos see.
-- Assassination: Each mafioso secretly chooses a target; the player
+{chat_step}- Assassination: Each mafioso secretly chooses a target; the player
 chosen most often is attacked, and a tie is broken randomly. The target
 must be an active non-mafioso.
 - Outcome: Killed players become inactive immediately and take no further
@@ -81,8 +78,7 @@ individuals know.
 detective.
 - All mafiosos see which target each mafioso chose at night, and they
 are all informed of the outcome.
-- Apart from the mafia chat at night, there is no private messaging; all
-other communication occurs in public during the day.
+{chat_flow}
 - The total number of each role is known to all players from the start.
 - Deaths and arrests are publicly announced.
 - Voting results are announced and all players see who voted for whom.
@@ -100,7 +96,7 @@ want to choose.
 - If you fail to respond in the required format, a random valid choice
 will be made for you.
 
-DISCUSSION RESPONSE FORMAT (also for the mafia chat):
+DISCUSSION RESPONSE FORMAT{chat_format}:
 - Your discussion response MUST START with your message, enclosed in
 double quotation marks.
 - Optional reasoning may follow AFTER a line break.

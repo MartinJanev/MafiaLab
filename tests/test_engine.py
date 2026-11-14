@@ -8,31 +8,43 @@ import re
 
 import pytest
 
-from mafialab import paths
 from mafialab.game.engine import play_game
 from mafialab.game.log import load_game, save_game
+from mafialab.game.prompts import STYLES, personality
 from mafialab.llm import DiskCache, FakeLLM, LLMError, ManagedClient
 
 ROLES = ("mafioso", "detective", "villager")
-TRANSCRIPTS = sorted((paths.repo_root() / "paper" / "transcripts").glob("*.json"))
 
 
-def scripted(vote_for):
+def scripted(vote_for, night=lambda name, c: c[0]):
+    # vote_for and night: (name, candidates) -> the name to vote for or act on at night
     def respond(request):
         prompt = request.prompt_text()
         name = re.search(r"You're (\w+) and the other players", prompt)[1]
-        if "#VOTING TIME:" in prompt:
+        if "#VOTING TIME:" in prompt or "#NIGHT" in prompt:
             candidates = re.search(r"from: (.*)\.\n", prompt)[1].split(", ")
-            return f"{vote_for(name, candidates)}\nBecause."
+            pick = vote_for if "#VOTING TIME:" in prompt else night
+            return f"{pick(name, candidates)}\nBecause."
         return f'"I am {name}." \n Reasoning.'
 
     llm = FakeLLM(respond)
     return llm, dict.fromkeys(ROLES, llm)
 
 
+def classic(seed):
+    # roles are dealt before any model call, so they depend on the seed only; with this night
+    # the detective investigates the mafioso and the mafioso kills a villager
+    roles = {p.name: p.role for p in play_game(scripted(lambda name, c: c[0])[1], seed).players}
+
+    def night(name, candidates):
+        mafia = [n for n in candidates if roles[n] == "mafioso"]
+        return mafia[0] if mafia else next(n for n in candidates if roles[n] == "villager")
+
+    return night
+
+
 def roles_for(seed):
-    # roles are dealt before any model call, so they depend on the seed only
-    log = play_game(scripted(lambda name, c: c[0])[1], seed)
+    log = play_game(scripted(lambda name, c: c[0], classic(seed))[1], seed)
     kill = next(a for a in log.night_actions if a.action == "kill")
     return {p.role: p.name for p in log.players if p.alive_at_start_of_day} | {
         "victim": kill.target
@@ -41,10 +53,11 @@ def roles_for(seed):
 
 def test_progress_reports_every_request():
     lines = []
-    play_game(scripted(lambda name, c: c[0])[1], seed=1, progress=lines.append)
+    play_game(scripted(lambda name, c: c[0], classic(1))[1], seed=1, progress=lines.append)
     replies = [line for line in lines if not line.startswith(("Day", "Night"))]
-    assert len(replies) == 9
-    assert all(re.search(r"\) (discussion|vote) \(\d+\.\d+s\): \S", line) for line in replies)
+    assert len(replies) == 11
+    kinds = r"\) (investigate|kill|discussion|vote) \(\d+\.\d+s\): \S"
+    assert all(re.search(kinds, line) for line in replies)
     assert any(re.match(r"Day 1: \w+ \(\w+\) arrested", line) for line in lines)
     assert any(re.match(r"Night 1: \w+ \(villager\) killed", line) for line in lines)
 
@@ -59,13 +72,16 @@ def test_same_seed_same_log():
 
 def test_town_wins_when_the_mafioso_is_voted_out():
     roles = roles_for(3)
-    llm, clients = scripted(lambda name, c: roles["mafioso"] if roles["mafioso"] in c else c[0])
+    llm, clients = scripted(
+        lambda name, c: roles["mafioso"] if roles["mafioso"] in c else c[0], classic(3)
+    )
     log = play_game(clients, seed=3)
     assert log.outcome.winner == "town"
     assert log.outcome.arrested == roles["mafioso"]
     assert log.day_results[0].tally[roles["mafioso"]] == 2
     assert not log.day_results[0].tie_break
-    assert len(llm.calls) == 2 * 3 + 3  # two rounds of three speakers, then three votes
+    # two night actions, two rounds of three speakers, then three votes
+    assert len(llm.calls) == 2 + 2 * 3 + 3
     assert all(m.parse_ok and m.text.startswith("I am") for m in log.messages)
     assert [m.round for m in log.messages] == [1, 1, 1, 2, 2, 2]
     # the last vote prompt has the whole discussion, with the voter's own lines as "You: ..."
@@ -79,7 +95,7 @@ def test_town_wins_when_the_mafioso_is_voted_out():
 def test_mafia_wins_when_the_detective_is_voted_out():
     roles = roles_for(5)
     det, maf = roles["detective"], roles["mafioso"]
-    log = play_game(scripted(lambda name, c: maf if name == det else det)[1], seed=5)
+    log = play_game(scripted(lambda name, c: maf if name == det else det, classic(5))[1], seed=5)
     assert log.outcome == log.outcome.model_validate(
         {"winner": "mafia", "arrested": det, "reason": f"{det} arrested on day 1"}
     )
@@ -93,7 +109,7 @@ def test_three_way_tie_is_broken_at_random():
 
     arrested = set()
     for seed in range(20):
-        result = play_game(scripted(next_in_circle)[1], seed).day_results[0]
+        result = play_game(scripted(next_in_circle, classic(seed))[1], seed).day_results[0]
         assert result.tie_break
         assert sorted(result.tied_candidates) == sorted(result.tally)
         assert set(result.tally.values()) == {1}
@@ -110,24 +126,10 @@ def test_unparseable_replies_mean_silence_and_random_votes():
     assert log.messages[0].turn == {"reply": "Hmm, let me think."}
 
 
-def test_engine_log_round_trips_and_matches_the_paper_format(tmp_path):
+def test_engine_log_round_trips(tmp_path):
     log = play_game(scripted(lambda name, c: c[0])[1], seed=2, aliases=dict.fromkeys(ROLES, "x"))
     assert load_game(save_game(log, tmp_path / "game.json")) == log
-    paper = json.loads(TRANSCRIPTS[0].read_text())
-    # the paper format plus the mafia's night chat, which the 4-player paper game never has
-    assert log.model_dump().keys() - {"night_messages"} == paper.keys()
-    assert log.messages[0].model_dump().keys() == paper["messages"][0].keys()
     assert {p.model for p in log.players} == {"x"}
-
-
-@pytest.mark.parametrize("path", TRANSCRIPTS, ids=lambda p: p.stem)
-def test_paper_transcripts_load_with_the_same_reader(path):
-    log = load_game(path)
-    assert log.model_dump(mode="json", exclude_unset=True) == json.loads(path.read_text())
-
-
-def test_all_seven_paper_transcripts_are_present():
-    assert len(TRANSCRIPTS) == 7
 
 
 def test_cached_seed_replays_a_nondeterministic_model(tmp_path):
@@ -149,20 +151,20 @@ def test_a_halted_game_leaves_nothing_in_the_cache(tmp_path):
     assert cache._conn.execute("SELECT COUNT(*) FROM responses").fetchone() == (0,)
     finishing = ManagedClient(FakeLLM(default='"Hi."', model="m"), cache=cache)
     play_game(dict.fromkeys(ROLES, finishing), seed=4)
-    assert cache._conn.execute("SELECT COUNT(*) FROM responses").fetchone() == (9,)
+    assert cache._conn.execute("SELECT COUNT(*) FROM responses").fetchone() == (11,)
 
 
-def test_four_player_first_night_is_scripted():
-    llm, clients = scripted(lambda name, c: c[0])
+def test_four_player_first_night_is_played_by_the_models():
+    llm, clients = scripted(lambda name, c: c[0], classic(2))
     log = play_game(clients, seed=2)
     roles = {p.name: p.role for p in log.players}
     investigate, kill = log.night_actions
     assert roles[investigate.target] == "mafioso" and investigate.result == "mafioso"
     assert roles[kill.target] == "villager" and kill.result == "killed"
-    assert not investigate.turn and not kill.turn
-    assert {r.tags["action"] for r in llm.calls} == {"discussion", "vote"}
+    assert investigate.turn and kill.turn and not investigate.fallback and not kill.fallback
+    assert [r.tags["action"] for r in llm.calls[:2]] == ["investigate", "kill"]
     detective = next(n for n, r in roles.items() if r == "detective")
-    seen = next(r.prompt_text() for r in llm.calls if r.tags["player"] == detective)
+    seen = [r.prompt_text() for r in llm.calls if r.tags["player"] == detective][-1]
     assert (
         f"You investigated {investigate.target} and discovered that they are the mafioso." in seen
     )
@@ -189,7 +191,7 @@ def _four_player_games():
 
 
 SAVED_SEED = 1  # the doctor guards the first kill target
-FOUR_GOLDEN = "ec3910e51341daa705101257afe607b09ecdee5f0211e5e858c0833cae4f512f"
+FOUR_GOLDEN = "ccec84a2b73ac3e7de7109fcc420cdfbbe1468dd50e0a86490745fa0a1bd9f02"
 
 
 def test_four_player_games_are_unchanged():
@@ -359,3 +361,46 @@ def test_a_role_can_be_shared_by_several_models():
     assert [p.model for p in villagers] == ["a", "b", "a", "b"]
     assert {r.tags["player"] for r in a.calls} <= {p.name for p in villagers[::2]}
     assert {r.tags["player"] for r in b.calls} <= {p.name for p in villagers[1::2]}
+
+
+def test_only_the_tested_role_gets_the_style():
+    llm, clients = chooser(lambda name, kind, c: c[0])
+    log = play_game(clients, seed=1, n_players=6, personalities={"doctor": "cautious"})
+    roles = {p.name: p.role for p in log.players}
+    sentence = personality("cautious")
+    for r in llm.calls:
+        assert (sentence in r.prompt_text()) == (roles[r.tags["player"]] == "doctor")
+    assert log.config.personalities == {"doctor": "cautious"}
+
+
+def test_unknown_style_or_role_is_rejected():
+    _, clients = chooser(lambda name, kind, c: c[0])
+    with pytest.raises(ValueError, match="aggressive"):
+        play_game(clients, seed=1, n_players=6, personalities={"doctor": "sneaky"})
+    with pytest.raises(ValueError, match="doctor"):
+        play_game(clients, seed=1, n_players=4, personalities={"doctor": "cautious"})
+
+
+def test_styles_are_listed_in_file_order():
+    assert STYLES == ("aggressive", "cautious", "analytical")
+
+
+def test_no_chat_skips_the_mafia_chat():
+    llm, clients = chooser(lambda name, kind, c: c[0])
+    log = play_game(clients, seed=1, n_players=8, mafia_chat=False)
+    assert log.night_messages == [] and log.config.mafia_chat is False
+    assert all(r.tags["action"] != "mafia_chat" for r in llm.calls)
+    assert all("mafia chat" not in r.prompt_text().lower() for r in llm.calls)
+    assert any(a.action == "kill" for a in log.night_actions)
+
+
+def test_no_chat_with_one_mafioso_plays_normally():
+    _, clients = chooser(lambda name, kind, c: c[0])
+    log = play_game(clients, seed=2, n_players=6, mafia_chat=False)
+    assert log.outcome.winner in ("town", "mafia")
+
+
+def test_default_games_record_no_treatment():
+    _, clients = chooser(lambda name, kind, c: c[0])
+    cfg = play_game(clients, seed=1, n_players=8).config
+    assert cfg.personalities is None and cfg.mafia_chat is None

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 
 import pytest
 from typer.testing import CliRunner
@@ -35,7 +36,7 @@ def test_commands_do_not_read_the_repo_env_during_tests(tmp_path, monkeypatch):
 def test_help_lists_commands():
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
-    for cmd in ("models", "play", "tournament", "summary", "version"):
+    for cmd in ("models", "play", "tournament", "summary", "experiment", "version"):
         assert cmd in result.output
 
 
@@ -58,8 +59,8 @@ def test_play_runs_and_saves_a_replayable_log(tmp_path, monkeypatch):
     log = load_game(folder / "seed-0003.json")
     assert log.seeds == {"game": 3} and {p.model for p in log.players} == {"fake"}
     turns = folder / "seed-0003" / "turns"
-    assert len(list(turns.glob("*_response.json"))) == 9
-    assert log.messages[0].turn["files"]["response_file"] == "turns/01_discussion_" + (
+    assert len(list(turns.glob("*_response.json"))) == 11
+    assert log.messages[0].turn["files"]["response_file"] == "turns/03_discussion_" + (
         log.messages[0].speaker.lower() + "_response.json"
     )
 
@@ -76,6 +77,7 @@ def test_tournament_then_summary(tmp_path, monkeypatch):
     assert result.exit_code == 0, result.output
     assert "Deceive: mafia wins" in result.output and "fake" in result.output
     assert "6/6 (100%)" in result.output
+    assert re.search(r"fake +[012]/2 \d+%±\d+", result.output)
 
 
 def test_tournament_with_larger_games(tmp_path, monkeypatch):
@@ -159,3 +161,20 @@ def test_tournament_commands_reject_bad_player_counts(tmp_path, command, players
     args = ["--config", str(config), "--out-dir", str(tmp_path / "games")]
     result = runner.invoke(app, [command, *args, "--players", players])
     assert result.exit_code == 2 and "4 to 16" in result.output
+
+
+def test_experiment_run_then_summary(tmp_path, monkeypatch):
+    monkeypatch.setenv("MAFIALAB_CACHE_DIR", str(tmp_path / "cache"))
+    config = tmp_path / "experiments.yaml"
+    config.write_text("chat:\n  players: 8\n  games: 1\n  models: [fake]\n")
+    args = ["chat", "--config", str(config), "--out-dir", str(tmp_path / "exp")]
+    result = runner.invoke(app, ["experiment", "run", *args])
+    assert result.exit_code == 0, result.output
+    assert "Played 2 games over 2 arms." in result.output
+    result = runner.invoke(app, ["experiment", "summary", *args])
+    assert result.exit_code == 0, result.output
+    assert "Mafia chat, fake" in result.output
+
+
+def test_experiment_rejects_unknown_name():
+    assert runner.invoke(app, ["experiment", "run", "tournament"]).exit_code != 0

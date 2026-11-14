@@ -31,7 +31,7 @@ DISCUSSION_ROUNDS = 2
 def template(name: str) -> str:
     """
     Read a prompt text file once and keep it in memory.
-    :param name: Path inside prompts/ without .txt, e.g. "paper/action_voting_A1".
+    :param name: Path inside prompts/ without .txt, e.g. "mafia/action_voting".
     :return: The file's text.
     """
     return (paths.prompts_dir() / f"{name}.txt").read_text(encoding="utf-8")
@@ -47,6 +47,31 @@ def _lines() -> dict[str, str]:
     return yaml.safe_load(
         (paths.prompts_dir() / "mafia" / "lines.yaml").read_text(encoding="utf-8")
     )
+
+
+@cache
+def _styles() -> dict[str, str]:
+    """
+    Read prompts/mafia/personalities.yaml once: one play-style sentence per style.
+    :return: Each sentence by its style name, in file order.
+    """
+    return yaml.safe_load(
+        (paths.prompts_dir() / "mafia" / "personalities.yaml").read_text(encoding="utf-8")
+    )
+
+
+STYLES = tuple(_styles())
+
+
+def personality(style: str) -> str:
+    """
+    The play-style sentence for a style.
+    :param style: One of STYLES; anything else raises ValueError.
+    :return: The sentence that goes into the player's opening memory.
+    """
+    if style not in STYLES:
+        raise ValueError(f"unknown style {style!r}, known styles: {', '.join(STYLES)}")
+    return _styles()[style]
 
 
 def line(key: str, **slots: str | int) -> str:
@@ -96,7 +121,7 @@ def message_line(speaker: str, listener: str, message: str | None) -> str:
     own = speaker == listener
     if message is None:
         return line("silent_own") if own else line("silent_other", speaker=speaker)
-    text = template("paper/message_own_A2" if own else "paper/message_other_A2").strip()
+    text = template("mafia/message_own" if own else "mafia/message_other").strip()
     return text.replace("{player.name}", speaker).replace('"message"', f'"{message}"')
 
 
@@ -106,7 +131,7 @@ def discussion_action(round_num: int, rounds: int = DISCUSSION_ROUNDS) -> str:
     :param round_num: Which round of today's discussion this is.
     :param rounds: How many rounds there are each day.
     """
-    text = template("paper/action_discussion_A1")
+    text = template("mafia/action_discussion")
     return text.replace("[round_num]", str(round_num)).replace("[discussion_rounds]", str(rounds))
 
 
@@ -115,7 +140,7 @@ def voting_action(candidates: list[str]) -> str:
     The instruction at the end of the prompt for a day vote, listing who can be voted for.
     :param candidates: Everyone alive except the voter.
     """
-    return template("paper/action_voting_A1").replace("[candidates]", ", ".join(candidates))
+    return template("mafia/action_voting").replace("[candidates]", ", ".join(candidates))
 
 
 def night_action(night: int, action: str, candidates: list[str]) -> str:
@@ -126,7 +151,7 @@ def night_action(night: int, action: str, candidates: list[str]) -> str:
     :param action: "investigate", "protect" or "kill".
     :param candidates: Who may be chosen.
     """
-    text = template("paper/action_night_A1").replace("[round_num]", str(night))
+    text = template("mafia/action_night").replace("[round_num]", str(night))
     return text.replace("[action]", action).replace("[candidates]", ", ".join(candidates))
 
 
@@ -140,18 +165,23 @@ def mafia_chat_action(night: int, candidates: list[str]) -> str:
     return text.replace("[candidates]", ", ".join(candidates))
 
 
-def start_memory(role: str, name: str, fellow_mafiosos: list[str]) -> list[str]:
+def start_memory(
+    role: str, name: str, fellow_mafiosos: list[str], style: str | None = None
+) -> list[str]:
     """
     What a player knows when the game starts: their name and role and, for a mafioso, who the
     other mafiosos are.
     :param role: The player's role, e.g. "mafioso".
     :param name: The player's name, e.g. "Alice".
     :param fellow_mafiosos: The other mafiosos, or an empty list for everyone else.
+    :param style: A play style from STYLES; its sentence is added after the start lines.
     :return: The first lines of the player's memory.
     """
     lines = [line("start", name=name, role=role)]
     if fellow_mafiosos:
         lines.append(line("fellow_mafiosos", names=", ".join(fellow_mafiosos)))
+    if style:
+        lines.append(personality(style))
     return lines
 
 
@@ -161,10 +191,23 @@ def vote_line(voter: str, target: str, listener: str) -> str:
     return line("vote_other", voter=voter, target=target)
 
 
+CHAT_SLOTS = ("chat_mafia", "chat_step", "chat_flow", "chat_format")
+
+
 def game_prompt(
-    name: str, memory: list[str], action: str, names: tuple[str, ...] = NAMES[:4]
+    name: str,
+    memory: list[str],
+    action: str,
+    names: tuple[str, ...] = NAMES[:4],
+    mafia_chat: bool = True,
 ) -> str:
+    """
+    Fill in the rulebook.
+    :param mafia_chat: False drops the passages about the private mafia chat.
+    """
+    chat = {slot: line(slot if mafia_chat else "no_" + slot) for slot in CHAT_SLOTS}
     return template("mafia/game_prompt").format(
+        **chat,
         composition=composition_text(len(names)),
         name=name,
         other_players=", ".join(n for n in names if n != name),

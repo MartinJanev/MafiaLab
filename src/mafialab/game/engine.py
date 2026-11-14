@@ -27,6 +27,7 @@ from mafialab.game.prompts import (
     mafia_chat_action,
     message_line,
     night_action,
+    personality,
     start_memory,
     vote_line,
     voting_action,
@@ -45,15 +46,16 @@ def play_game(
     discussion_rounds: int = DISCUSSION_ROUNDS,
     progress: Callable[[str], None] | None = None,
     output_dir: str | Path | None = None,
+    personalities: Mapping[str, str] | None = None,
+    mafia_chat: bool = True,
 ) -> GameLog:
     """
     Play one whole game: nights and days take turns until the town or the mafia has won.
     :param clients: The model that plays each role, e.g. {"mafioso": ..., "detective": ...,
         "villager": ...}. Every player with the same role is played by the same model, unless
         the role gets a list: then its players, in seat order, take the models in turn.
-    :param seed: Decides the roles, the speaking order, tie-breaks, random fallback picks and
-        the scripted first-night victim. With the cache on, the same seed and models replay the
-        same game.
+    :param seed: Decides the roles, the speaking order, tie-breaks and random fallback picks.
+        With the cache on, the same seed and models replay the same game.
     :param n_players: 4 to 16. Games of 5 or more also have a doctor.
     :param aliases: The model name written in the log for each role, shaped like clients.
         Defaults to the client's model id.
@@ -61,9 +63,18 @@ def play_game(
     :param discussion_rounds: How many times each living player speaks every day.
     :param progress: Called with one line of text after every model reply, to show live progress.
     :param output_dir: If given, every raw model reply is also saved there as JSON files.
+    :param personalities: A play style (see prompts.STYLES) for each role to test, e.g.
+        {"doctor": "cautious"}. Its players get the style sentence in their opening memory.
+    :param mafia_chat: False removes the mafiosos' private night chat, and every mention of
+        it from the rulebook.
     :return: Everything that happened: the roles, every night action, message and vote, and who
         won.
     """
+    personalities = dict(personalities or {})
+    for role, style in personalities.items():
+        if role not in composition(n_players):
+            raise ValueError(f"no {role} in a game of {n_players} players")
+        personality(style)
     rng = random.Random(seed)
     names = NAMES[:n_players]
     seats = [r for r, c in composition(n_players).items() for _ in range(c)]
@@ -110,7 +121,7 @@ def play_game(
         :return: The reply text, and a small dict for the log with the reply and its saved files.
         """
         request = LLMRequest.from_prompt(
-            game_prompt(name, memory[name], action, names),
+            game_prompt(name, memory[name], action, names, mafia_chat),
             sample_index=seed,  # with the cache, the same seed replays the same game
             tags={
                 "game_id": game_id,
@@ -201,9 +212,7 @@ def play_game(
             progress(f"Day {day}: {arrested} ({roles[arrested]}) arrested, votes {tally}")
         return arrested
 
-    def choose(
-        actor: str, night: int, action: str, candidates: list[str], forced: str | None = None
-    ) -> str:
+    def choose(actor: str, night: int, action: str, candidates: list[str]) -> str:
         """
         Ask one player for their night target and record the choice.
         :param actor: The player acting.
@@ -211,14 +220,9 @@ def play_game(
         :param action: "investigate", "protect" or "kill"; it is written into the prompt.
         :param candidates: Who they may pick. A reply that doesn't start with one of these names
             gets a random pick instead.
-        :param forced: Skip the model and use this target (the scripted first night with 4
-            players).
         :return: The chosen target.
         """
-        if forced:
-            reply, turn = forced, None
-        else:
-            reply, turn = ask(actor, night_action(night, action, candidates), action, night)
+        reply, turn = ask(actor, night_action(night, action, candidates), action, night)
         target = parse_vote(reply, candidates)
         night_actions.append(
             NightAction(
@@ -247,13 +251,10 @@ def play_game(
         detective = next((n for n in alive if roles[n] == "detective"), None)
         doctor = next((n for n in alive if roles[n] == "doctor"), None)
 
-        # with 4 players the first night is scripted: the detective finds the mafioso and a
-        # random villager dies, so the one day decides the game
-        scripted = n_players == 4 and k == 1
         # the detective learns the true role of one other player
         if detective:
             others = [n for n in alive if n != detective]
-            seen = choose(detective, k, "investigate", others, mafia[0] if scripted else None)
+            seen = choose(detective, k, "investigate", others)
             night_actions[-1].result = roles[seen]
             memory[detective].append(line("investigated", target=seen, role=roles[seen]))
         protected = None
@@ -266,7 +267,7 @@ def play_game(
         # the mafia can attack anyone who is not mafia
         targets = [n for n in alive if roles[n] != "mafioso"]
         # two or more mafiosos first talk in private: one message each, in seat order
-        if len(mafia) > 1:
+        if mafia_chat and len(mafia) > 1:
             for m in mafia:
                 memory[m].append(line("mafia_chat"))
             for position, speaker in enumerate(mafia, start=1):
@@ -286,11 +287,9 @@ def play_game(
                         turn=turn,
                     )
                 )
-        # on the scripted night a random villager is the target instead of asking the mafia
-        forced = rng.choice([n for n in alive if roles[n] == "villager"]) if scripted else None
         # every mafioso picks a target on their own; the most picked one is attacked and a tie
         # is broken at random
-        picks = [choose(m, k, "kill", targets, forced) for m in mafia]
+        picks = [choose(m, k, "kill", targets) for m in mafia]
         kills = night_actions[-len(mafia) :]  # the picks just made, one per mafioso
         tally = {n: picks.count(n) for n in picks}
         victim = rng.choice([n for n, c in tally.items() if c == max(tally.values())])
@@ -330,7 +329,9 @@ def play_game(
     # at the start a player knows only their own name and role (mafiosos also know each other)
     for n in names:
         team = [m for m in names if m != n and roles[m] == "mafioso"]
-        memory[n] = start_memory(roles[n], n, team if roles[n] == "mafioso" else [])
+        memory[n] = start_memory(
+            roles[n], n, team if roles[n] == "mafioso" else [], personalities.get(roles[n])
+        )
     alive.extend(names)
     day1 = None
     completed = False
@@ -362,6 +363,8 @@ def play_game(
             n_players=len(names),
             names=list(names),
             discussion_rounds=discussion_rounds,
+            personalities=personalities or None,
+            mafia_chat=None if mafia_chat else False,
         ),
         seeds={"game": seed},
         players=[

@@ -4,7 +4,15 @@ import pytest
 
 from mafialab.game.log import load_game, save_game
 from mafialab.llm.registry import ModelsConfig, ModelSpec
-from mafialab.tournament import format_failures, lineups, log_path, run, win_tables
+from mafialab.tournament import (
+    format_failures,
+    lineups,
+    log_path,
+    posterior,
+    run,
+    win_tables,
+    z_scores,
+)
 
 FAKES = ModelsConfig(
     models={a: ModelSpec(alias=a, provider="fake", model=a) for a in ("a", "b", "c")}
@@ -32,6 +40,10 @@ def test_run_saves_every_game_and_resumes(tmp_path):
     assert run(schedule, 3, tmp_path, config=FAKES, echo=lines.append) == 12
     assert len(list(tmp_path.glob("players-4/M_*/seed-*.json"))) == 12
     assert lines[0].startswith("[1/12] players-4/M_a__D_b__V_b seed 1: ")
+    log = load_game(log_path(tmp_path, "a", "b", "b", 1))
+    assert log.metadata["models"] == {
+        a: {"provider": "fake", "model": a, "params": {}} for a in "ab"
+    }
     lines.clear()
     assert run(schedule, 3, tmp_path, config=FAKES, echo=lines.append) == 0
     assert lines == ["Skipping 12 saved games, 0 left to play."]
@@ -94,3 +106,19 @@ def test_larger_games_add_protect_and_their_own_folder(tmp_path):
     failures = format_failures(tmp_path, ["a", "b"], ["b"], players=5)
     a = failures["a"]
     assert a["night"] > 0 and a["night_fallback"] == a["night"]
+
+
+def test_z_scores_standardize_each_background_then_average():
+    table = {
+        ("a", "x"): (8, 10),
+        ("b", "x"): (5, 10),
+        ("c", "x"): (2, 10),
+        ("a", "y"): (5, 10),
+        ("b", "y"): (5, 10),
+        ("c", "y"): (5, 10),
+        ("a", "z"): (9, 10),  # one model alone gives no spread, so z is left out
+        ("b", "z"): (0, 0),
+    }
+    z = z_scores(table)
+    assert z == pytest.approx({"a": 0.5, "b": 0.0, "c": -0.5})
+    assert posterior(35, 100) == pytest.approx((36 / 102, (36 / 102 * 66 / 102 / 103) ** 0.5))

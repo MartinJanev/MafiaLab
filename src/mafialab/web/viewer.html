@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MafiaLab games</title>
+<style>
+  :root {
+    --bg: #f6f6f4; --panel: #fff; --ink: #1d1d1b; --muted: #75756f; --line: #e4e4df;
+    --mafioso: #c0392b; --detective: #2563eb; --doctor: #15803d; --villager: #6b7280;
+    --town: #2563eb; --mafia: #c0392b;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.5 system-ui, sans-serif; color: var(--ink); background: var(--bg);
+         display: grid; grid-template-columns: 320px 1fr; height: 100vh; }
+  aside { border-right: 1px solid var(--line); background: var(--panel); display: flex;
+          flex-direction: column; min-height: 0; }
+  .filters { padding: 12px; display: grid; gap: 8px; border-bottom: 1px solid var(--line); }
+  .filters input, .filters select { width: 100%; padding: 6px 8px; border: 1px solid var(--line);
+                                    border-radius: 6px; font: inherit; background: #fff; }
+  .filters .row { display: flex; gap: 8px; }
+  #count { color: var(--muted); font-size: 12px; }
+  #list { overflow: auto; flex: 1; padding: 4px 0; }
+  details { border-bottom: 1px solid var(--line); }
+  summary { padding: 8px 12px; cursor: pointer; font-size: 12.5px; list-style: none; }
+  summary:hover { background: #fafaf8; }
+  summary .lineup { display: block; }
+  summary .tally { color: var(--muted); font-size: 11.5px; }
+  .seeds { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 12px 10px; }
+  .seed { border: 0; border-radius: 4px; padding: 2px 6px; font: 11.5px ui-monospace, monospace;
+          color: #fff; cursor: pointer; opacity: .8; }
+  .seed:hover, .seed.on { opacity: 1; outline: 2px solid var(--ink); outline-offset: 1px; }
+  .seed.town { background: var(--town); } .seed.mafia { background: var(--mafia); }
+  main { overflow: auto; padding: 24px 32px 80px; }
+  main > * { max-width: 860px; margin-left: auto; margin-right: auto; }
+  .empty { color: var(--muted); margin-top: 20vh; text-align: center; }
+  header h1 { font-size: 20px; margin: 0 0 4px; }
+  header .meta { color: var(--muted); font-size: 12.5px; }
+  .banner { margin: 14px auto; padding: 10px 14px; border-radius: 8px; color: #fff; font-weight: 600; }
+  .banner.town { background: var(--town); } .banner.mafia { background: var(--mafia); }
+  .banner span { font-weight: 400; opacity: .9; }
+  .players { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+  .player { background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+            padding: 8px 10px; border-left: 4px solid var(--c); }
+  .player.dead { opacity: .55; }
+  .player b { display: block; } .player small { color: var(--muted); display: block; }
+  .tools { display: flex; justify-content: flex-end; gap: 14px; margin: 18px auto 0;
+           color: var(--muted); font-size: 12.5px; }
+  .phase { margin-top: 26px; }
+  .phase h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; margin: 0 0 10px;
+              padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+  .phase.night h2 { color: #4b3f8f; }
+  .night-box { background: #f0eef9; border-radius: 8px; padding: 10px 14px; }
+  .round { color: var(--muted); font-size: 11.5px; margin: 12px 0 6px; }
+  .msg { display: grid; grid-template-columns: 34px 1fr; gap: 10px; margin: 8px 0; }
+  .avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--c); color: #fff;
+            display: grid; place-items: center; font-weight: 600; }
+  .bubble { background: var(--panel); border: 1px solid var(--line); border-radius: 0 10px 10px;
+            padding: 7px 11px; }
+  .night-box .bubble { background: #fff; }
+  .who { font-size: 12px; color: var(--muted); }
+  .who b { color: var(--ink); }
+  .tag { display: inline-block; font-size: 10.5px; padding: 0 6px; border-radius: 9px;
+         color: #fff; background: var(--c); margin-left: 4px; vertical-align: 1px; }
+  .tag.warn { background: #b45309; }
+  .silent { color: var(--muted); font-style: italic; }
+  .raw { display: none; margin-top: 6px; padding: 6px 8px; border-radius: 6px; background: #f4f4f1;
+         color: #55554f; font: 12px/1.45 ui-monospace, monospace; white-space: pre-wrap; }
+  body.show-raw .raw { display: block; }
+  .action { margin: 4px 0; }
+  .action .arrow { color: var(--muted); margin: 0 4px; }
+  .result { color: var(--muted); }
+  .votes { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; background: var(--panel);
+           border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; margin-top: 14px; }
+  .votes h3 { margin: 0 0 6px; font-size: 12px; color: var(--muted); font-weight: 600; }
+  .bar { display: grid; grid-template-columns: 70px 1fr 20px; gap: 8px; align-items: center;
+         font-size: 12.5px; margin: 3px 0; }
+  .bar div { height: 10px; border-radius: 5px; background: var(--c); }
+  .arrest { margin-top: 10px; font-weight: 600; }
+  .c-mafioso { --c: var(--mafioso); } .c-detective { --c: var(--detective); }
+  .c-doctor { --c: var(--doctor); } .c-villager { --c: var(--villager); }
+</style>
+</head>
+<body>
+<aside>
+  <div class="filters">
+    <input id="q" placeholder="Filter lineups, e.g. llama3.1 or M_ollama-gemma">
+    <div class="row">
+      <select id="size"></select>
+      <select id="winner">
+        <option value="">Any winner</option><option value="town">Town won</option>
+        <option value="mafia">Mafia won</option>
+      </select>
+    </div>
+    <div id="count"></div>
+  </div>
+  <div id="list"></div>
+</aside>
+<main id="game"><p class="empty">Pick a game on the left.</p></main>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"})[c]);
+const short = (m) => (m || "?").replace(/^ollama-/, "");
+const ROLES = {M: "mafioso", D: "detective", Doc: "doctor", V: "villagers"};
+let games = [];
+
+// "M_a+b__D_c__V_d" -> "mafioso a, b · detective c · villagers d"
+function lineupLabel(dir) {
+  return dir.split("__").map((part) => {
+    const [key, models] = [part.slice(0, part.indexOf("_")), part.slice(part.indexOf("_") + 1)];
+    return `${ROLES[key] || key} <b>${models.split("+").map(short).join(", ")}</b>`;
+  }).join(" · ");
+}
+
+function renderList() {
+  const q = $("#q").value.trim().toLowerCase(), size = $("#size").value, win = $("#winner").value;
+  const groups = new Map();
+  for (const g of games) {
+    const [sz, lineup] = g.path.split("/");
+    if (sz !== size || (win && g.winner !== win) || (q && !lineup.toLowerCase().includes(q))) continue;
+    if (!groups.has(lineup)) groups.set(lineup, []);
+    groups.get(lineup).push(g);
+  }
+  const current = location.hash.slice(1);
+  let n = 0;
+  $("#list").innerHTML = [...groups].map(([lineup, gs]) => {
+    n += gs.length;
+    const town = gs.filter((g) => g.winner === "town").length;
+    const open = gs.some((g) => g.path === current) ? " open" : "";
+    const seeds = gs.map((g) => {
+      const seed = +g.path.match(/seed-(\d+)/)[1];
+      const on = g.path === current ? " on" : "";
+      return `<button class="seed ${g.winner}${on}" title="${esc(g.reason)}" data-path="${esc(g.path)}">${seed}</button>`;
+    }).join("");
+    return `<details${open}><summary><span class="lineup">${lineupLabel(lineup)}</span>
+      <span class="tally">${gs.length} games · town ${town}, mafia ${gs.length - town}</span></summary>
+      <div class="seeds">${seeds}</div></details>`;
+  }).join("");
+  $("#count").textContent = `${n} games in ${groups.size} lineups`;
+}
+
+function bubble(m, roles, models) {
+  const role = roles[m.speaker];
+  const raw = m.turn && m.turn.reply && m.turn.reply.trim() !== m.text.trim()
+    ? `<div class="raw">${esc(m.turn.reply)}</div>` : "";
+  const body = m.silent ? `<span class="silent">stayed silent (reply had no quoted line)</span>` : esc(m.text);
+  return `<div class="msg c-${role}"><div class="avatar">${esc(m.speaker[0])}</div>
+    <div class="bubble"><div class="who"><b>${esc(m.speaker)}</b><span class="tag">${role}</span>
+    · ${esc(short(models[m.speaker]))}${m.silent ? '<span class="tag warn">silent</span>' : ""}</div>
+    ${body}${raw}</div></div>`;
+}
+
+function action(a, roles) {
+  const verb = {investigate: "investigates", protect: "protects", kill: "wants to kill"}[a.action] || a.action;
+  const result = a.result ? `<span class="result"> → ${esc(a.result)}</span>` : "";
+  const fb = a.fallback ? '<span class="tag warn">random fallback</span>' : "";
+  const raw = a.turn && a.turn.reply ? `<div class="raw">${esc(a.turn.reply)}</div>` : "";
+  return `<div class="action"><span class="c-${roles[a.actor]}"><b>${esc(a.actor)}</b><span class="tag">${roles[a.actor]}</span></span>
+    <span class="arrow">${verb}</span><b>${esc(a.target)}</b>${result}${fb}${raw}</div>`;
+}
+
+function renderGame(g, path) {
+  const roles = {}, models = {}, died = {};
+  for (const p of g.players) { roles[p.name] = p.role; models[p.name] = p.model; }
+  for (const a of g.night_actions) if (a.result === "killed") died[a.target] = `killed night ${a.night}`;
+  for (const r of g.day_results) died[r.arrested] = `arrested day ${r.day}`;
+  const nights = Math.max(0, ...g.night_actions.map((a) => a.night));
+  const days = Math.max(0, ...g.messages.map((m) => m.day), ...g.day_results.map((r) => r.day));
+
+  let timeline = "";
+  for (let i = 1; i <= Math.max(nights, days); i++) {
+    const chat = (g.night_messages || []).filter((m) => m.day === i);
+    const acts = g.night_actions.filter((a) => a.night === i);
+    if (chat.length || acts.length) {
+      timeline += `<section class="phase night"><h2>Night ${i}</h2><div class="night-box">
+        ${chat.length ? '<div class="round">Mafia chat (only the mafia see this)</div>' + chat.map((m) => bubble(m, roles, models)).join("") : ""}
+        ${chat.length ? '<div class="round">Actions</div>' : ""}${acts.map((a) => action(a, roles)).join("")}</div></section>`;
+    }
+    const msgs = g.messages.filter((m) => m.day === i);
+    const votes = g.votes.filter((v) => v.day === i);
+    const res = g.day_results.find((r) => r.day === i);
+    if (!msgs.length && !votes.length) continue;
+    let rounds = "", last = null;
+    for (const m of msgs) {
+      if (m.round !== last) { rounds += `<div class="round">Round ${m.round}</div>`; last = m.round; }
+      rounds += bubble(m, roles, models);
+    }
+    let voteBox = "";
+    if (votes.length) {
+      const list = votes.map((v) => `<div class="action"><span class="c-${roles[v.voter]}"><b>${esc(v.voter)}</b></span>
+        <span class="arrow">→</span><b>${esc(v.target)}</b>${v.fallback ? '<span class="tag warn">random fallback</span>' : ""}
+        ${v.turn && v.turn.reply ? `<div class="raw">${esc(v.turn.reply)}</div>` : ""}</div>`).join("");
+      let tally = "";
+      if (res) {
+        const max = Math.max(1, ...Object.values(res.tally));
+        tally = Object.entries(res.tally).sort((a, b) => b[1] - a[1]).map(([name, n]) =>
+          `<div class="bar c-${roles[name]}"><span>${esc(name)}</span><div style="width:${n / max * 100}%"></div><span>${n}</span></div>`).join("");
+        tally += `<div class="arrest c-${res.arrested_role}">${esc(res.arrested)} arrested
+          <span class="tag">${res.arrested_role}</span>${res.tie_break ? `<span class="tag warn">tie broken at random: ${res.tied_candidates.map(esc).join(", ")}</span>` : ""}</div>`;
+      }
+      voteBox = `<div class="votes"><div><h3>Votes</h3>${list}</div><div><h3>Tally</h3>${tally}</div></div>`;
+    }
+    timeline += `<section class="phase"><h2>Day ${i}</h2>${rounds}${voteBox}</section>`;
+  }
+
+  const players = g.players.map((p) => `<div class="player c-${p.role}${died[p.name] ? " dead" : ""}">
+    <b>${esc(p.name)}</b><small>${p.role} · ${esc(short(p.model))}</small>
+    <small>${died[p.name] || "survived"}</small></div>`).join("");
+  $("#game").innerHTML = `<header><h1>${esc(g.game_id)}</h1>
+    <div class="meta">${esc(path)} · ${g.config.n_players} players · version ${esc(g.metadata.mafialab_version || "?")}</div></header>
+    <div class="banner ${g.outcome.winner}">${g.outcome.winner === "town" ? "Town" : "Mafia"} wins <span>· ${esc(g.outcome.reason)}</span></div>
+    <div class="players">${players}</div>
+    <div class="tools"><label><input type="checkbox" id="raw"${document.body.classList.contains("show-raw") ? " checked" : ""}> Show full model replies</label></div>
+    ${timeline}`;
+  $("#raw").onchange = (e) => document.body.classList.toggle("show-raw", e.target.checked);
+  $("#game").scrollTop = 0;
+}
+
+async function show(path) {
+  if (!path) return;
+  const res = await fetch(path);
+  if (!res.ok) { $("#game").innerHTML = `<p class="empty">Could not load ${esc(path)}</p>`; return; }
+  renderGame(await res.json(), path);
+  document.querySelectorAll(".seed").forEach((b) => b.classList.toggle("on", b.dataset.path === path));
+}
+
+$("#list").onclick = (e) => { if (e.target.dataset.path) location.hash = e.target.dataset.path; };
+window.onhashchange = () => show(location.hash.slice(1));
+["#q", "#size", "#winner"].forEach((s) => $(s).addEventListener("input", renderList));
+
+fetch("index.json").then((r) => r.json()).then((list) => {
+  games = list;
+  const sizes = [...new Set(list.map((g) => g.path.split("/")[0]))]
+    .sort((a, b) => a.match(/\d+/)[0] - b.match(/\d+/)[0]);
+  $("#size").innerHTML = sizes.map((s) => `<option value="${s}">${s.replace("players-", "")} players</option>`).join("");
+  const current = location.hash.slice(1);
+  if (current) $("#size").value = current.split("/")[0];
+  renderList();
+  show(current);
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+personality:
+  players: 6
+  games: 30
+  models: [ollama-qwen2.5-14b, ollama-gemma3-12b]
+  styles: [aggressive, cautious, analytical]
+chat:
+  players: 8
+  games: 30
+  models: [ollama-qwen2.5-14b, ollama-gemma3-12b]

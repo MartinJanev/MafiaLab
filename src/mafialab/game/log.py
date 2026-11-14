@@ -18,6 +18,8 @@ class GameConfig(_Strict):
     names: list[str]
     discussion_rounds: int
     prompt_variant: str | None = None
+    personalities: dict[str, str] | None = None  # role -> play style, only when tested
+    mafia_chat: bool | None = None  # False when the private night chat was off
 
 
 # one player: name, role, the model playing them, and whether they were alive on day 1
@@ -82,7 +84,7 @@ class Outcome(_Strict):
 
 # a whole game, exactly as saved to and loaded from JSON
 class GameLog(_Strict):
-    schema_version: str = "1.2"
+    schema_version: str = "1.3"
     game_id: str
     source: str
     config: GameConfig

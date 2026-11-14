@@ -302,17 +302,24 @@ def test_ollama_client_options():
     assert seen["body"]["stream"] is False
 
 
+def test_ollama_build_reads_the_model_from_the_server_list():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/tags"
+        model = {"name": "qwen2.5:7b", "digest": "abc", "details": {"quantization_level": "Q4_K_M"}}
+        return httpx.Response(200, json={"models": [model]})
+
+    def client(name: str, http: httpx.Client) -> OllamaClient:
+        return OllamaClient(name, base_url="http://ollama.test", http=http)
+
+    build = client("qwen2.5:7b", _mock(handler)).build()
+    assert build == {"digest": "abc", "quantization": "Q4_K_M", "parameter_size": None}
+    assert client("mistral:7b", _mock(handler)).build() == {}
+    assert client("x", _mock(lambda r: httpx.Response(500))).build() == {}
+
+
 def test_models_yaml_loads_and_builds_all_clients():
     cfg = load_models()
     assert {s.provider for s in cfg.models.values()} <= {"ollama", "fake", "nim", "openai_compat"}
-    open_weight_paper = {
-        s.paper_model for s in cfg.models.values() if s.provider == "ollama" and s.paper_model
-    }
-    assert open_weight_paper == {
-        "Llama 3.1 8B Instruct",
-        "Mistral 7B Instruct",
-        "Qwen2.5 7B Instruct",
-    }
     for spec in cfg.models.values():
         assert build_raw_client(spec).model == spec.model
 
@@ -328,10 +335,8 @@ def test_every_model_plays_at_the_same_sampling_settings():
         assert spec.provider != "ollama" or params["top_k"] == 40, alias
 
 
-def test_paid_models_yaml_has_the_papers_ten_api_models():
+def test_paid_models_yaml_loads_and_builds_all_clients():
     cfg = load_models(paths.configs_dir() / "paid-models.yaml")
     assert cfg.get("or-gpt-5-mini").params["reasoning_effort"] == "minimal"
-    api_paper = {s.paper_model for s in cfg.models.values() if s.provider == "openai_compat"}
-    assert len(api_paper) == 10
     for spec in cfg.models.values():
         assert build_raw_client(spec).model == spec.model

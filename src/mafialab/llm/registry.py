@@ -22,7 +22,7 @@ ProviderName = Literal["openai_compat", "anthropic", "ollama", "nim", "fake"]
 
 
 # one entry of configs/models.yaml: the provider and model id behind an alias, plus its sampling
-# params, price, rate limit and, for the paper's models, the name the paper uses
+# params, price and rate limit
 class ModelSpec(BaseModel):
     alias: str
     provider: ProviderName
@@ -32,7 +32,6 @@ class ModelSpec(BaseModel):
     params: dict[str, Any] = Field(default_factory=dict)
     pricing: Pricing = Field(default_factory=Pricing)
     rpm: float = 0
-    paper_model: str | None = None
 
 
 class ModelsConfig(BaseModel):

@@ -220,6 +220,27 @@ class OllamaClient(_HTTPClient):
         )
         return self._finish(text, usage, data, started, data.get("done_reason"), thinking=thinking)
 
+    def build(self) -> dict[str, Any]:
+        """
+        Which build of the model the server holds: its digest, quantization and size. Empty if
+        the server can't be reached or doesn't have the model.
+        """
+        try:
+            resp = self.http.get(f"{self.base_url}/api/tags")
+            resp.raise_for_status()
+            listed = resp.json().get("models", [])
+        except (httpx.HTTPError, ValueError):
+            return {}
+        for m in listed:
+            if self.model in (m.get("name"), m.get("model")):
+                details = m.get("details") or {}
+                return {
+                    "digest": m.get("digest"),
+                    "quantization": details.get("quantization_level"),
+                    "parameter_size": details.get("parameter_size"),
+                }
+        return {}
+
 
 class NVIDIAClient(OpenAICompatClient):
     provider = "nim"
