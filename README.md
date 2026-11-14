@@ -134,5 +134,6 @@ src/mafialab/game/    prompt filling, reply parsing, game loop, game log
 src/mafialab/tournament.py  lineups, resumable runner, win tables
 src/mafialab/experiments.py  personality and mafia chat experiments, their summaries
 src/mafialab/web/     `mafialab view`: local web page for reading saved games
+cluster/              runs on the FINKI GPGPU cluster: setup.sh, job.sh (SLURM), sync.sh
 tests/
 ```
